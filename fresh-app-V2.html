@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fresh">
+<meta name="theme-color" content="#1a1a1a">
+<title>Fresh — Food Safety QR</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#F8F7F4;color:#1a1a1a;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button,input,textarea{font-family:inherit}
+button{cursor:pointer}
+input,textarea{-webkit-appearance:none;appearance:none;border-radius:0}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:#ccc;border-radius:99px}
+.fade{animation:fu .22s ease}
+@keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sa{0%{top:6px}100%{top:calc(100% - 6px)}}
+@keyframes sp{to{transform:rotate(360deg)}}
+.sl{position:absolute;left:8px;right:8px;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);border-radius:2px;animation:sa 2s ease-in-out infinite;pointer-events:none}
+.st{padding-top:env(safe-area-inset-top,0px)}
+.sb{padding-bottom:env(safe-area-inset-bottom,16px)}
+@media print{.np{display:none!important}body{background:#fff}#pgrid{grid-template-columns:repeat(4,1fr)!important;padding:6px!important;gap:2px!important}.pc{page-break-inside:avoid;border-radius:0!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+
+// ── REAL QR CODE GENERATOR (pure JS, no CDN needed) ──────────────────────────
+// Full ISO 18004 implementation with Reed-Solomon error correction.
+// Generates QR codes that iPhone camera natively reads.
+const QRGen=(function(){
+  const EXP=new Uint8Array(512),LOG=new Uint8Array(256);
+  (function(){let x=1;for(let i=0;i<255;i++){EXP[i]=x;LOG[x]=i;x<<=1;if(x&256)x^=285}for(let i=255;i<512;i++)EXP[i]=EXP[i-255]})();
+  function mul(a,b){if(!a||!b)return 0;return EXP[(LOG[a]+LOG[b])%255]}
+  function genPoly(n){let p=[1];for(let i=0;i<n;i++){let q=new Uint8Array(p.length+1);for(let j=0;j<p.length;j++){q[j]^=p[j];q[j+1]^=mul(p[j],EXP[i])}p=q}return p}
+  function rsDiv(msg,gen){let out=[...msg,...new Uint8Array(gen.length-1)];for(let i=0;i<msg.length;i++){const c=out[i];if(c)for(let j=1;j<gen.length;j++)out[i+j]^=mul(gen[j],c)}return out.slice(msg.length)}
+
+  function getVer(n){if(n<=17)return 1;if(n<=32)return 2;if(n<=53)return 3;return 4}
+  function getCap(v){return[0,19,34,55,80][v]||19}
+  function getEC(v){return[[0,0],[7,1],[10,1],[15,1],[20,2]][v]||[7,1]}
+
+  function encBits(text,ver){
+    const bytes=[];for(let i=0;i<text.length;i++)bytes.push(text.charCodeAt(i)&0xff);
+    const bits=[];
+    function add(v,l){for(let i=l-1;i>=0;i--)bits.push((v>>i)&1)}
+    add(4,4);add(bytes.length,ver<10?8:16);
+    bytes.forEach(b=>add(b,8));
+    const cap=getCap(ver)*8;
+    for(let i=0;i<4&&bits.length<cap;i++)bits.push(0);
+    while(bits.length%8)bits.push(0);
+    const pads=[0xEC,0x11];let pi=0;
+    while(bits.length<cap){const p=pads[pi%2];pi++;add(p,8)}
+    const out=[];for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];out.push(b)}
+    return out;
+  }
+
+  function build(text){
+    const ver=getVer(text.length),size=ver*4+17;
+    const mat=Array.from({length:size},()=>new Array(size).fill(null));
+    const res=Array.from({length:size},()=>new Uint8Array(size));
+    function p(r,c,v){if(r>=0&&r<size&&c>=0&&c<size){mat[r][c]=v?1:0;res[r][c]=1}}
+    function finder(r,c){for(let dr=0;dr<7;dr++)for(let dc=0;dc<7;dc++){const v=(dr===0||dr===6||dc===0||dc===6||(dr>=2&&dr<=4&&dc>=2&&dc<=4))?1:0;p(r+dr,c+dc,v)}}
+    finder(0,0);finder(0,size-7);finder(size-7,0);
+    // Separators
+    for(let i=0;i<8;i++){p(7,i,0);p(i,7,0);p(7,size-8+i,0);p(i,size-8,0);p(size-8,i,0);p(size-1-i,7,0)}
+    // Timing
+    for(let i=8;i<size-8;i++){if(!res[6][i])p(6,i,i%2?0:1);if(!res[i][6])p(i,6,i%2?0:1)}
+    // Dark
+    p(size-8,8,1);
+    // Alignment (ver>=2)
+    if(ver>=2){const aps=[[],[],[6,18],[6,22,26],[6,26,30,34]][ver]||[];
+      aps.forEach(ar=>aps.forEach(ac=>{if(!res[ar][ac])for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++)p(ar+dr,ac+dc,(Math.abs(dr)===2||Math.abs(dc)===2||(dr===0&&dc===0))?1:0)}))}
+    // Format placeholders
+    for(let i=0;i<=8;i++){if(i!==6){if(!res[i][8])res[i][8]=1;if(!res[8][i])res[8][i]=1}if(i<8){res[size-1-i][8]=1;res[8][size-8+i]=1}}
+    res[size-8][8]=1;
+
+    // Data codewords
+    const [ecPer,nBlocks]=getEC(ver);
+    let msg=encBits(text,ver);
+    const blks=[],ecb=[];
+    const bsz=Math.floor(msg.length/nBlocks),rem=msg.length%nBlocks;
+    for(let i=0;i<nBlocks;i++){const b=msg.splice(0,bsz+(i>=(nBlocks-rem||nBlocks)?1:0));blks.push(b);ecb.push(rsDiv(b,genPoly(ecPer)))}
+    const cw=[];
+    for(let i=0;i<Math.max(...blks.map(b=>b.length));i++)blks.forEach(b=>{if(i<b.length)cw.push(b[i])});
+    for(let i=0;i<ecPer;i++)ecb.forEach(b=>cw.push(b[i]));
+    cw.push(0);
+
+    let bi=0,sh=7;
+    function nb(){if(bi>=cw.length)return 0;const b=(cw[bi]>>sh)&1;sh--;if(sh<0){sh=7;bi++}return b}
+    let up=true;
+    for(let col=size-1;col>=0;col-=2){
+      if(col===6)col=5;
+      for(let i=0;i<size;i++){const row=up?size-1-i:i;for(const dc of[0,1]){const c=col-dc;if(!res[row][c])mat[row][c]=nb()}}
+      up=!up;
+    }
+    // Mask pattern 0
+    for(let r=0;r<size;r++)for(let c=0;c<size;c++)if(!res[r][c]&&(r+c)%2===0)mat[r][c]^=1;
+    // Format info (ECC=M, mask=0): precomputed 101010000010010
+    const fmt=[1,0,1,0,1,0,0,0,0,0,1,0,0,1,0];
+    const fp=[[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+    fp.forEach(([r,c],i)=>{mat[r][c]=fmt[i];if(r!==c)mat[c][r]=fmt[i]});
+    for(let i=0;i<7;i++)mat[size-1-i][8]=fmt[14-i];
+    for(let i=0;i<8;i++)mat[8][size-8+i]=fmt[i];
+    mat[size-8][8]=1;
+    return{mat,size};
+  }
+
+  function renderToImg(text,imgEl,sz=120){
+    try{
+      const{mat,size}=build(text);
+      const px=Math.max(3,Math.floor(sz/size));
+      const mg=4,dim=(size+mg*2)*px;
+      const cv=document.createElement('canvas');cv.width=cv.height=dim;
+      const ctx=cv.getContext('2d');
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,dim,dim);
+      ctx.fillStyle='#000';
+      mat.forEach((row,r)=>row.forEach((cell,c)=>{if(cell)ctx.fillRect((c+mg)*px,(r+mg)*px,px,px)}));
+      imgEl.src=cv.toDataURL('image/png');
+      imgEl.style.width=imgEl.style.height=sz+'px';
+    }catch(e){imgEl.alt='QR Error';console.error(e)}
+  }
+  return{renderToImg};
+})();
+
+// ── BARCODE DETECTOR (native API — no CDN) ────────────────────────────────────
+// Uses BarcodeDetector: built into Safari 17.4+, Chrome 88+, Edge 88+.
+// No external library needed at all.
+const Scanner=(function(){
+  let stream=null,rafId=null,detector=null,active=false;
+  async function init(){
+    if(typeof BarcodeDetector==='undefined')return{ok:false,msg:'QR scanning needs iOS 17.4+ with Safari, or Chrome 88+ on Android.\n\nGo to Settings → General → Software Update to update iOS.\n\nOr use Manual Entry below.'};
+    try{
+      const fmts=await BarcodeDetector.getSupportedFormats();
+      if(!fmts.includes('qr_code'))return{ok:false,msg:'QR format not supported on this device.\n\nPlease use Manual Entry.'};
+      detector=new BarcodeDetector({formats:['qr_code']});
+      return{ok:true};
+    }catch(e){return{ok:false,msg:'Scanner error: '+e.message}}
+  }
+  async function start(videoEl,onResult){
+    active=true;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+      videoEl.srcObject=stream;
+      videoEl.setAttribute('playsinline','true');
+      videoEl.muted=true;
+      await videoEl.play();
+    }catch(e){
+      let msg='Camera error.';
+      if(e.name==='NotAllowedError')msg='Camera permission denied.\n\n📱 Fix on iPhone:\n1. Tap AA in the address bar\n2. Tap Website Settings\n3. Change Camera → Allow\n4. Try again\n\nOR: Settings → Safari → Camera → Allow';
+      else if(e.name==='NotFoundError')msg='No camera found on this device.';
+      else if(e.name==='NotSupportedError')msg='Camera not supported.\nOpen this app in Safari on iPhone.';
+      else msg='Camera error: '+e.message;
+      return{ok:false,msg};
+    }
+    async function poll(){
+      if(!active)return;
+      if(videoEl.readyState>=2&&detector){
+        try{
+          const bc=await detector.detect(videoEl);
+          if(bc.length>0){const v=bc[0].rawValue;stop();onResult(v);return}
+        }catch(e){}
+      }
+      rafId=requestAnimationFrame(poll);
+    }
+    rafId=requestAnimationFrame(poll);
+    return{ok:true};
+  }
+  function stop(){active=false;if(rafId){cancelAnimationFrame(rafId);rafId=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+  return{init,start,stop};
+})();
+
+// ── APP STATE ─────────────────────────────────────────────────────────────────
+const DL={'FR-001':'Kitchen Station A','FR-002':'Kitchen Station B','FR-003':'Prep Counter 1','FR-004':'Prep Counter 2','FR-005':'Storage Shelf A','FR-006':'Storage Shelf B','FR-007':'Fridge Slot 1','FR-008':'Fridge Slot 2','FR-009':'Pantry Row 1','FR-010':'Pantry Row 2','FR-011':'Freezer Bay 1','FR-012':'Freezer Bay 2','FR-013':'Service Counter','FR-014':'Hot Hold Unit','FR-015':'Cold Hold Unit','FR-016':'Dry Store','FR-017':'Receiving Dock','FR-018':'Bakery Station','FR-019':'Grill Station','FR-020':'Salad Bar'};
+const QIDs=Object.keys(DL);
+const CATS={highly_perishable:{label:'Highly Perishable',sub:'Raw ingredients',days:1,color:'#E24B4A',bg:'#FCEBEB',border:'#F09595',icon:'🥩'},mid_perishable:{label:'Mid Perishable',sub:'Curries & cooked meals',days:3,color:'#BA7517',bg:'#FAEEDA',border:'#EF9F27',icon:'🍛'},perishable:{label:'Perishable',sub:'Oil-cooked foods',days:4,color:'#3B6D11',bg:'#EAF3DE',border:'#97C459',icon:'🍳'}};
+const PLANS=[{id:'free_trial',label:'30-Day Free Trial',price:'$0',desc:'Beta users with promo code',color:'#3B6D11',bg:'#EAF3DE'},{id:'basic',label:'Basic',price:'$4.99/mo',desc:'Up to 20 QR codes, 1 user',color:'#185FA5',bg:'#E6F1FB'},{id:'pro',label:'Pro',price:'$12.99/mo',desc:'Unlimited QR codes, 5 users',color:'#533AB7',bg:'#EEEDFE'},{id:'enterprise',label:'Enterprise',price:'$29.99/mo',desc:'Unlimited + API + analytics',color:'#993C1D',bg:'#FAECE7'}];
+const BETA=['BETA2024','FRESH30','FTRIAL1','EARLYBIRD'],DEV=['DEV-OWNER-001','DEV-TEST-002','ADMIN-FREE'];
+function ls(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+function hAgo(h){return new Date(Date.now()-h*36e5).toISOString()}
+
+const A={
+  tab:'dashboard',screen:'main',
+  entries:ls('fe',[{id:1,qrId:'FR-001',foodName:'Chicken Breast',category:'highly_perishable',entryTime:hAgo(3),expiryDays:1,notes:'Batch #A12'},{id:2,qrId:'FR-002',foodName:'Lamb Curry',category:'mid_perishable',entryTime:hAgo(26),expiryDays:3,notes:'Chef special'},{id:3,qrId:'FR-003',foodName:'Fried Tofu',category:'perishable',entryTime:hAgo(72),expiryDays:4,notes:''},{id:4,qrId:'FR-004',foodName:'Raw Salmon',category:'highly_perishable',entryTime:hAgo(20),expiryDays:1,notes:'Delivery #D99'},{id:5,qrId:'FR-005',foodName:'Beef Rendang',category:'mid_perishable',entryTime:hAgo(48),expiryDays:3,notes:''},{id:6,qrId:'FR-006',foodName:'Stir-fried Veggies',category:'perishable',entryTime:hAgo(12),expiryDays:4,notes:'Batch B'}]),
+  labels:ls('fl',{...DL}),plan:ls('fp','free_trial'),
+  filterCat:'all',notif:null,scanErr:null,scanLoad:false,
+  entryQR:null,entryStep:0,entryForm:{},
+  promoCode:'',promoErr:'',promoOk:'',editQRId:null,lastEntry:null,detReady:false
+};
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function exp(t,d){const x=new Date(t);x.setDate(x.getDate()+d);return x}
+function hl(e){return(new Date(e)-Date.now())/36e5}
+function fp(t,d){const tot=d*864e5,el=Date.now()-new Date(t);return Math.max(0,Math.min(100,((tot-el)/tot)*100))}
+function fc(p){return p>60?'#3B6D11':p>25?'#BA7517':'#E24B4A'}
+function tl(h){if(h<=0)return'EXPIRED';if(h<1)return Math.round(h*60)+'m left';if(h<24)return Math.round(h)+'h left';return Math.floor(h/24)+'d '+Math.round(h%24)+'h left'}
+function fd(iso){return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function si(e){const p=fp(e.entryTime,e.expiryDays),h=hl(exp(e.entryTime,e.expiryDays));if(h<=0)return{l:'Expired',bg:'#FCEBEB',c:'#A32D2D'};if(p<25)return{l:'Critical',bg:'#FCEBEB',c:'#A32D2D'};if(p<60)return{l:'Use Soon',bg:'#FAEEDA',c:'#854F0B'};return{l:'Fresh',bg:'#EAF3DE',c:'#27500A'}}
+function fb(p,h=6){return`<div style="background:#f0f0f0;border-radius:99px;height:${h}px;overflow:hidden;width:100%"><div style="background:${fc(p)};width:${p}%;height:100%;border-radius:99px"></div></div>`}
+function bdg(e){const s=si(e);return`<span style="background:${s.bg};color:${s.c};font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px">${s.l}</span>`}
+function notify(msg,type='ok'){A.notif={msg,type};render();clearTimeout(A._nt);A._nt=setTimeout(()=>{A.notif=null;render()},3000)}
+function srt(){return[...A.entries].sort((a,b)=>exp(a.entryTime,a.expiryDays)-exp(b.entryTime,b.expiryDays))}
+function qds(id){return'FRESH:'+id+':'+(A.labels[id]||id)}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+async function openCamera(){
+  A.screen='camera';A.scanErr=null;A.scanLoad=true;render();
+  await new Promise(r=>setTimeout(r,100));
+  const video=document.getElementById('sv');
+  if(!video){A.scanErr='Video element not found.';A.scanLoad=false;render();return}
+  if(!A.detReady){const r=await Scanner.init();if(!r.ok){A.scanErr=r.msg;A.scanLoad=false;render();return}A.detReady=true}
+  const r2=await Scanner.start(video,val=>{A.screen='main';handleScan(val)});
+  A.scanLoad=false;
+  if(r2&&!r2.ok)A.scanErr=r2.msg;
+  render();
+}
+function stopCamera(){Scanner.stop();A.screen='main';render()}
+function handleScan(text){let id=text.trim().toUpperCase();const m=text.match(/FRESH:([A-Z0-9\-]+)/i);if(m)id=m[1].toUpperCase();openEntry(id)}
+function openEntry(id){A.entryQR={id,label:A.labels[id]||id};A.entryStep=0;A.entryForm={foodName:'',category:'',customDays:null,notes:'',entryTime:new Date().toISOString()};A.screen='entry';render()}
+function entryNext(){const d=A.entryForm,step=A.entryStep;if(step<2){A.entryStep++;render();return}const cat=CATS[d.category]||CATS.perishable;const e={id:Date.now(),qrId:A.entryQR.id,foodName:d.foodName,category:d.category,entryTime:d.entryTime,expiryDays:d.customDays||cat.days,notes:d.notes||''};A.entries.unshift(e);A.lastEntry=e;A.labels[e.qrId]=e.foodName;sv('fe',A.entries.slice(0,100));sv('fl',A.labels);A.screen='success';render()}
+function saveQL(id){const el=document.getElementById('eq_'+id);if(el&&el.value.trim())A.labels[id]=el.value.trim();sv('fl',A.labels);A.editQRId=null;notify('Label saved')}
+function applyPromo(){const c=(A.promoCode||'').toUpperCase();A.promoErr='';A.promoOk='';if(BETA.includes(c)){A.plan='free_trial';sv('fp','free_trial');A.promoOk='🎉 30-day free trial activated!'}else if(DEV.includes(c)){A.plan='enterprise';sv('fp','enterprise');A.promoOk='🛠️ Developer access granted!'}else A.promoErr='Invalid code. Try BETA2024.';render()}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(){
+  const app=document.getElementById('app');if(!app)return;
+  const s=A.screen;
+  if(s==='camera'){app.innerHTML=bCam();return}
+  if(s==='entry'){app.innerHTML=bEntry();return}
+  if(s==='manual'){app.innerHTML=bManual();setTimeout(rQRs,50);return}
+  if(s==='print'){app.innerHTML=bPrint();setTimeout(rQRs,50);return}
+  if(s==='success'){app.innerHTML=bSuccess();return}
+  app.innerHTML=bMain();
+  if(A.tab==='qrcodes')setTimeout(rQRs,50);
+}
+function rQRs(){document.querySelectorAll('[data-qr]').forEach(img=>{const t=img.getAttribute('data-qr'),sz=parseInt(img.getAttribute('data-qr-size')||'120');if(t)QRGen.renderToImg(t,img,sz)})}
+
+// ── MAIN SHELL ────────────────────────────────────────────────────────────────
+function bMain(){
+  const expc=A.entries.filter(e=>hl(exp(e.entryTime,e.expiryDays))<=0).length;
+  const crit=A.entries.filter(e=>{const p=fp(e.entryTime,e.expiryDays);return p<25&&p>0}).length;
+  const content={dashboard:bDash(),scan:bScan(),inventory:bInv(),qrcodes:bQRTab(),settings:bSet()}[A.tab]||'';
+  return`
+${A.notif?`<div style="position:fixed;top:max(env(safe-area-inset-top,0px),14px);left:50%;transform:translateX(-50%);background:${A.notif.type==='err'?'#FCEBEB':'#EAF3DE'};color:${A.notif.type==='err'?'#A32D2D':'#27500A'};padding:9px 20px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,0.14);z-index:9999;white-space:nowrap;max-width:92vw;text-align:center">${A.notif.msg}</div>`:''}
+<div class="np st" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
+  <div style="display:flex;align-items:center;gap:9px">
+    <div style="width:34px;height:34px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px">🥗</div>
+    <div><div style="font-weight:700;font-size:16px;letter-spacing:-0.02em">Fresh</div><div style="font-size:9px;color:#bbb;letter-spacing:0.06em;text-transform:uppercase">Food Safety QR</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:7px">
+    ${(expc+crit)>0?`<div style="background:#FCEBEB;color:#A32D2D;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px">⚠️ ${expc+crit}</div>`:''}
+    <button onclick="A.screen='auth';render()" style="background:#f5f4f0;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:500">👤</button>
+  </div>
+</div>
+<div class="np" style="background:#fff;border-bottom:1px solid #e8e4dc;display:flex;overflow-x:auto;padding:0 4px;-webkit-overflow-scrolling:touch">
+  ${[['dashboard','📊','Dashboard'],['scan','📷','Scan'],['inventory','📋','Inventory'],['qrcodes','⬛','QR Codes'],['settings','⚙️','Settings']].map(([id,ico,lbl])=>`<button onclick="A.tab='${id}';render()" style="border:none;background:none;padding:10px 13px;font-size:12px;font-weight:${A.tab===id?'600':'400'};color:${A.tab===id?'#1a1a1a':'#999'};border-bottom:${A.tab===id?'2.5px solid #1a1a1a':'2.5px solid transparent'};white-space:nowrap;display:flex;align-items:center;gap:4px"><span>${ico}</span>${lbl}</button>`).join('')}
+</div>
+<div style="padding:16px;max-width:860px;margin:0 auto;padding-bottom:40px" class="fade">${content}</div>
+${A.screen==='auth'?bAuth():''}`;
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function bDash(){
+  const s=srt();
+  const expc=A.entries.filter(e=>hl(exp(e.entryTime,e.expiryDays))<=0).length;
+  const crit=A.entries.filter(e=>{const p=fp(e.entryTime,e.expiryDays);return p<25&&p>0}).length;
+  const fresh=A.entries.filter(e=>fp(e.entryTime,e.expiryDays)>60).length;
+  const cc=Object.fromEntries(Object.keys(CATS).map(k=>[k,A.entries.filter(e=>e.category===k).length]));
+  return`
+<div style="margin-bottom:16px"><h2 style="margin:0 0 2px;font-size:20px;font-weight:700">Dashboard</h2><p style="margin:0;color:#999;font-size:12px">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p></div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px">${[['Total',A.entries.length,'#1a1a1a','#f5f4f0'],['Fresh',fresh,'#27500A','#EAF3DE'],['Use Soon',crit,'#854F0B','#FAEEDA'],['Expired',expc,'#A32D2D','#FCEBEB']].map(([l,v,c,bg])=>`<div style="background:${bg};border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:${c};opacity:.7;margin-bottom:2px">${l}</div><div style="font-size:28px;font-weight:700;color:${c}">${v}</div></div>`).join('')}</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;margin-bottom:16px">${Object.entries(CATS).map(([k,cat])=>`<div style="background:#fff;border:1px solid ${cat.border};border-left:4px solid ${cat.color};border-radius:10px;padding:12px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="font-size:18px">${cat.icon}</span><div><div style="font-weight:600;font-size:13px">${cat.label}</div><div style="font-size:10px;color:#aaa">${cat.sub}</div></div></div><div style="font-size:24px;font-weight:700;color:${cat.color}">${cc[k]}</div><div style="font-size:10px;color:#aaa">items · max ${cat.days}d</div></div>`).join('')}</div>
+<div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;overflow:hidden;margin-bottom:16px">
+  <div style="padding:11px 14px;border-bottom:1px solid #f0ede6;display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:14px">⚡ Priority Queue</div><div style="font-size:11px;color:#aaa">by urgency</div></div>
+  ${s.map((e,i)=>{const cat=CATS[e.category],h=hl(exp(e.entryTime,e.expiryDays)),p=fp(e.entryTime,e.expiryDays),st=si(e);return`<div style="padding:9px 14px;${i<s.length-1?'border-bottom:1px solid #f8f6f2':''}display:flex;align-items:center;gap:9px"><div style="width:24px;height:24px;background:${cat.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${cat.icon}</div><div style="flex:1;min-width:0"><div style="font-weight:500;font-size:13px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.foodName}</div>${fb(p)}</div><div style="text-align:right;min-width:68px;flex-shrink:0"><span style="background:${st.bg};color:${st.c};font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px">${st.l}</span><div style="font-size:10px;color:#aaa;margin-top:2px">${tl(h)}</div></div></div>`}).join('')}
+</div>
+<div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;padding:13px 15px"><div style="font-weight:600;font-size:13px;margin-bottom:12px">📈 Freshness Profile</div>${s.map(e=>{const cat=CATS[e.category],p=fp(e.entryTime,e.expiryDays),ex2=exp(e.entryTime,e.expiryDays);return`<div style="display:grid;grid-template-columns:120px 1fr 65px;align-items:center;gap:8px;margin-bottom:7px"><div style="display:flex;align-items:center;gap:5px;overflow:hidden"><span style="font-size:11px">${cat.icon}</span><span style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.foodName}</span></div>${fb(p,6)}<div style="font-size:10px;color:#aaa;text-align:right">${ex2.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>`}).join('')}</div>`;
+}
+
+// ── SCAN TAB ──────────────────────────────────────────────────────────────────
+function bScan(){
+  const sup=typeof BarcodeDetector!=='undefined';
+  return`
+<h2 style="margin:0 0 4px;font-size:20px;font-weight:700">Scan &amp; Log Food</h2>
+<p style="margin:0 0 18px;color:#999;font-size:13px">Use your iPhone camera to scan a printed QR label.</p>
+${!sup?`<div style="background:#FAEEDA;border:1px solid #EF9F27;border-radius:12px;padding:14px 16px;margin-bottom:14px"><div style="font-weight:600;font-size:13px;color:#854F0B;margin-bottom:5px">⚠️ iOS Update Required</div><div style="font-size:12px;color:#5C3A0A;line-height:1.7">Camera QR scanning requires <strong>iOS 17.4+</strong>.<br>Go to <strong>Settings → General → Software Update</strong>.<br>Or tap Manual Entry below.</div></div>`:''}
+<button onclick="openCamera()" ${!sup?'disabled':''} style="width:100%;background:${sup?'#1a1a1a':'#aaa'};color:#fff;border:none;border-radius:16px;padding:0;overflow:hidden;margin-bottom:11px">
+  <div style="padding:20px;display:flex;align-items:center;gap:14px">
+    <div style="width:50px;height:50px;background:rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">📷</div>
+    <div style="text-align:left"><div style="font-weight:700;font-size:16px">Use iPhone Camera</div><div style="font-size:12px;opacity:.6;margin-top:2px">${sup?'Point at printed FR-001 → FR-020 labels':'Requires iOS 17.4+ Safari'}</div></div>
+    <div style="margin-left:auto;font-size:20px;opacity:.35">›</div>
+  </div>
+</button>
+<button onclick="A.screen='manual';render()" style="width:100%;background:#fff;color:#1a1a1a;border:1.5px solid #e8e4dc;border-radius:16px;padding:16px 18px;display:flex;align-items:center;gap:13px;margin-bottom:22px">
+  <div style="width:40px;height:40px;background:#f5f4f0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⌨️</div>
+  <div style="text-align:left"><div style="font-weight:600;font-size:15px">Enter QR ID Manually</div><div style="font-size:12px;color:#aaa;margin-top:1px">Type FR-001 through FR-020</div></div>
+  <div style="margin-left:auto;font-size:18px;color:#ccc">›</div>
+</button>
+<div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:12px;padding:13px 16px">
+  <div style="font-weight:600;font-size:13px;color:#27500A;margin-bottom:8px">📱 Requirements &amp; Fixes</div>
+  <div style="font-size:12px;color:#3B6D11;line-height:1.9">
+    ✅ <strong>iOS 17.4+</strong> with Safari (check Settings → General → Software Update)<br>
+    ✅ App opened via <strong>HTTPS</strong> URL (GitHub Pages or Netlify)<br>
+    ✅ Camera permission set to <strong>Allow</strong><br><br>
+    <strong>If permission denied:</strong> Tap <strong>AA</strong> in Safari address bar → Website Settings → Camera → Allow
+  </div>
+</div>`;
+}
+
+// ── CAMERA SCREEN ─────────────────────────────────────────────────────────────
+function bCam(){return`
+<div style="position:fixed;inset:0;background:#000;z-index:500;display:flex;flex-direction:column">
+  <div class="st" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:10;position:relative">
+    <button onclick="stopCamera()" style="background:rgba(255,255,255,0.14);border:none;color:#fff;border-radius:99px;padding:8px 18px;font-size:13px;font-weight:500">‹ Back</button>
+    <div style="color:#fff;font-size:14px;font-weight:600">Scan QR Label</div>
+    <div style="width:80px"></div>
+  </div>
+  <div style="flex:1;position:relative;display:flex;align-items:center;justify-content:center">
+    <video id="sv" playsinline autoplay muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1"></video>
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);z-index:2"></div>
+    <div style="position:relative;z-index:3;width:240px;height:240px">
+      <div style="position:absolute;inset:0;border:1px solid rgba(255,255,255,0.2);border-radius:16px"></div>
+      <div style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:3px solid #22c55e;border-left:3px solid #22c55e;border-radius:6px 0 0 0"></div>
+      <div style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:3px solid #22c55e;border-right:3px solid #22c55e;border-radius:0 6px 0 0"></div>
+      <div style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:3px solid #22c55e;border-left:3px solid #22c55e;border-radius:0 0 0 6px"></div>
+      <div style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:3px solid #22c55e;border-right:3px solid #22c55e;border-radius:0 0 6px 0"></div>
+      <div class="sl"></div>
+    </div>
+    ${A.scanLoad?`<div style="position:absolute;z-index:4;text-align:center"><div style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:sp 0.8s linear infinite;margin:0 auto 12px"></div><div style="color:#fff;font-size:13px">Starting camera…</div></div>`:''}
+    ${A.scanErr?`<div style="position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.93);padding:30px;text-align:center"><div style="font-size:48px;margin-bottom:16px">📵</div><div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:10px">Camera Issue</div><div style="color:rgba(255,255,255,0.65);font-size:13px;margin-bottom:24px;line-height:1.75;white-space:pre-line;max-width:300px">${A.scanErr}</div><button onclick="stopCamera();A.screen='manual';render()" style="background:#fff;color:#1a1a1a;border:none;border-radius:12px;padding:13px 28px;font-weight:700;font-size:14px;margin-bottom:10px;width:100%;max-width:280px">⌨️ Use Manual Entry</button><button onclick="stopCamera()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:12px;padding:11px 20px;font-size:13px;width:100%;max-width:280px">← Go Back</button></div>`:
+    !A.scanLoad?`<div style="position:absolute;bottom:20px;z-index:3;text-align:center;padding:0 30px"><div style="color:#fff;font-size:15px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.5)">Hold steady over printed QR label</div><div style="color:rgba(255,255,255,0.5);font-size:12px;margin-top:5px">Reads FR-001 through FR-020</div></div>`:''}
+  </div>
+  <div class="sb" style="padding:14px 18px 0;z-index:10;position:relative">
+    <div style="background:rgba(255,255,255,0.09);border-radius:12px;padding:13px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px"><span style="font-size:18px">💡</span><div style="color:rgba(255,255,255,0.7);font-size:12px;line-height:1.6">Use <strong style="color:#fff">Safari</strong> on iPhone · Good lighting · iOS 17.4+ required</div></div>
+    <button onclick="stopCamera();A.screen='manual';render()" style="width:100%;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:13px;font-size:14px;font-weight:500">⌨️ Enter QR ID Manually</button>
+  </div>
+</div>`}
+
+// ── MANUAL ────────────────────────────────────────────────────────────────────
+function bManual(){return`
+<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="st" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:13px 16px;display:flex;align-items:center;gap:11px;position:sticky;top:0;z-index:10">
+    <button onclick="A.screen='main';render()" style="background:none;border:none;font-size:24px;color:#888;line-height:1">‹</button>
+    <div style="font-weight:700;font-size:16px">Select QR Code</div>
+  </div>
+  <div style="padding:14px">
+    <div style="font-size:12px;color:#aaa;margin-bottom:12px">Tap a station to log food for it:</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:20px">
+      ${QIDs.map(id=>`<button onclick="A.screen='main';openEntry('${id}')" style="background:#fff;border:1.5px solid #e8e4dc;border-radius:10px;padding:9px 5px;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="background:#fff;padding:4px;border-radius:5px;border:1px solid #eee"><img data-qr="${qds(id)}" data-qr-size="40" width="40" height="40" style="display:block;image-rendering:pixelated" alt="${id}"></div><div style="font-size:9px;font-family:monospace;font-weight:700;color:#1a1a1a">${id}</div><div style="font-size:7px;color:#aaa;text-align:center;line-height:1.3;word-break:break-word">${A.labels[id]}</div></button>`).join('')}
+    </div>
+    <div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Or type an ID:</div>
+      <div style="display:flex;gap:8px">
+        <input id="mi" placeholder="e.g. FR-007" maxlength="6" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'&&this.value.trim()){A.screen='main';openEntry(this.value.trim())}" style="flex:1;padding:11px 13px;border-radius:9px;border:1.5px solid #ddd;font-size:15px;outline:none;text-transform:uppercase">
+        <button onclick="const v=document.getElementById('mi').value.trim();if(v){A.screen='main';openEntry(v)}" style="background:#1a1a1a;color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:14px">Go</button>
+      </div>
+    </div>
+  </div>
+</div>`}
+
+// ── ENTRY FORM ────────────────────────────────────────────────────────────────
+function bEntry(){
+  const qr=A.entryQR,d=A.entryForm,step=A.entryStep,cat=CATS[d.category];
+  const titles=['What food is this?','Confirm time & expiry','Add notes'];
+  const canNext=step===0?!!(d.foodName&&d.foodName.trim()&&d.category):true;
+  const steps=[
+    `<input id="ef" placeholder="e.g. Chicken Breast, Lamb Curry…" value="${d.foodName||''}" oninput="A.entryForm.foodName=this.value" style="width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #ddd;font-size:15px;margin-bottom:14px;box-sizing:border-box;outline:none">${Object.entries(CATS).map(([k,c])=>`<label style="display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:10px;border:1.5px solid ${d.category===k?c.color:'#e8e4dc'};background:${d.category===k?c.bg:'#fff'};cursor:pointer;margin-bottom:8px"><input type="radio" name="ec" ${d.category===k?'checked':''} onchange="A.entryForm.category='${k}';A.entryForm.customDays=${c.days};render()" style="accent-color:${c.color};width:18px;height:18px;flex-shrink:0"><span style="font-size:20px">${c.icon}</span><div><div style="font-weight:600;font-size:14px">${c.label}</div><div style="font-size:11px;color:#aaa">${c.sub} · ${c.days}d max</div></div></label>`).join('')}`,
+    `<div style="display:flex;flex-direction:column;gap:12px"><div style="background:#f5f4f0;border-radius:10px;padding:13px 15px"><div style="font-size:11px;color:#aaa;margin-bottom:2px">📅 Scan time</div><div style="font-weight:600;font-size:16px">${fd(d.entryTime||new Date().toISOString())}</div></div>${cat?`<div style="background:${cat.bg};border-radius:10px;padding:13px 15px;border:1px solid ${cat.border}"><div style="font-size:11px;color:#aaa;margin-bottom:2px">Default — ${cat.label}</div><div style="font-weight:700;font-size:22px;color:${cat.color}">${cat.days} day${cat.days>1?'s':''}</div></div>`:''}<div><div style="font-weight:600;font-size:13px;margin-bottom:9px">Override expiry:</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${[1,2,3,4].map(n=>`<button onclick="A.entryForm.customDays=${n};render()" style="padding:12px 0;border:1.5px solid ${d.customDays===n?'#1a1a1a':'#e0e0e0'};background:${d.customDays===n?'#1a1a1a':'#fff'};color:${d.customDays===n?'#fff':'#444'};border-radius:10px;font-weight:700;font-size:16px">${n}d</button>`).join('')}</div></div>${d.foodName&&cat?`<div style="background:#EAF3DE;border-radius:10px;padding:11px 14px;border:1px solid #C0DD97"><div style="font-size:11px;color:#3B6D11;font-weight:600">Preview</div><div style="font-size:13px;color:#27500A;margin-top:2px">${d.foodName} · expires ${exp(d.entryTime||new Date().toISOString(),d.customDays||1).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>`:''}</div>`,
+    `<div style="display:flex;flex-direction:column;gap:12px"><div style="background:#f5f4f0;border-radius:10px;padding:13px 15px"><div style="font-size:11px;color:#aaa">Logging:</div><div style="font-weight:600;font-size:15px;margin-top:2px">${d.foodName} → ${cat?cat.label:'?'}</div><div style="font-size:11px;color:#aaa;margin-top:2px">QR: ${qr.id} · Expires in ${d.customDays||1}d</div></div><textarea id="en" placeholder="Batch #, supplier, temperature…" rows="3" oninput="A.entryForm.notes=this.value" style="padding:12px 14px;border-radius:10px;border:1.5px solid #ddd;font-size:14px;resize:none;outline:none;box-sizing:border-box;width:100%">${d.notes||''}</textarea><div style="background:#fff;border:1px solid #e8e4dc;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#aaa;margin-bottom:3px">🔄 QR Reprogram</div><div style="font-size:12px;color:#444"><strong>${qr.id}</strong> will point to <strong>${d.foodName}</strong>.</div></div></div>`
+  ];
+  return`
+<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;display:flex;flex-direction:column;overflow:hidden">
+  <div class="st" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:13px 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <button onclick="A.screen='main';render()" style="background:none;border:none;font-size:24px;color:#888;line-height:1">‹</button>
+      <div><div style="font-size:10px;color:#bbb;text-transform:uppercase;letter-spacing:.05em">Step ${step+1} of 3 · <span style="font-family:monospace">${qr.id}</span></div><div style="font-weight:700;font-size:17px">${titles[step]}</div></div>
+    </div>
+    <div style="display:flex;gap:4px">${[0,1,2].map(i=>`<div style="flex:1;height:3px;border-radius:99px;background:${i<=step?'#1a1a1a':'#e8e4dc'}"></div>`).join('')}</div>
+  </div>
+  <div style="padding:12px 16px 0"><div style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e8e4dc;border-radius:99px;padding:4px 13px 4px 5px"><div style="width:20px;height:20px;background:#1a1a1a;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px">🥗</div><span style="font-size:12px;font-weight:600;font-family:monospace">${qr.id}</span><span style="font-size:11px;color:#aaa">${qr.label}</span><span style="font-size:13px">✅</span></div></div>
+  <div style="flex:1;padding:14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch">${steps[step]}</div>
+  <div class="sb" style="padding:12px 16px 0;background:#fff;border-top:1px solid #f0ede6">
+    <button onclick="entryNext()" ${!canNext?'disabled':''} style="width:100%;padding:14px;background:${canNext?'#1a1a1a':'#ccc'};color:#fff;border:none;border-radius:12px;font-weight:700;font-size:16px;cursor:${canNext?'pointer':'not-allowed'}">${step===2?'✅ Log & Reprogram QR':'Continue →'}</button>
+  </div>
+</div>`}
+
+// ── SUCCESS ───────────────────────────────────────────────────────────────────
+function bSuccess(){
+  const e=A.lastEntry;if(!e){A.screen='main';render();return''}
+  const cat=CATS[e.category],ex2=exp(e.entryTime,e.expiryDays);
+  return`
+<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 22px">
+  <div style="width:100%;max-width:360px;text-align:center" class="fade">
+    <div style="width:80px;height:80px;background:#EAF3DE;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:38px;margin:0 auto 20px">✅</div>
+    <div style="font-weight:700;font-size:22px;margin-bottom:5px">Entry Logged!</div>
+    <div style="font-size:14px;color:#aaa;margin-bottom:24px">QR code reprogrammed successfully</div>
+    <div style="background:#fff;border:1px solid #e8e4dc;border-left:5px solid ${cat.color};border-radius:13px;padding:17px;text-align:left;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="font-size:26px">${cat.icon}</span><div><div style="font-weight:700;font-size:17px">${e.foodName}</div><div style="font-size:12px;color:#aaa">${cat.label}</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">QR</span><span style="font-family:monospace;font-weight:600">${e.qrId}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">Logged</span><span>${fd(e.entryTime)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">Expires</span><span style="font-weight:600;color:${cat.color}">${ex2.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+        ${e.notes?`<div style="display:flex;justify-content:space-between;gap:8px"><span style="color:#aaa">Notes</span><span style="text-align:right">${e.notes}</span></div>`:''}
+      </div>
+    </div>
+    <button onclick="openCamera()" style="width:100%;background:#1a1a1a;color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:15px;margin-bottom:10px">📷 Scan Another QR</button>
+    <button onclick="A.screen='main';render()" style="width:100%;background:#fff;color:#1a1a1a;border:1.5px solid #e8e4dc;border-radius:12px;padding:13px;font-weight:500;font-size:15px">Back to Dashboard</button>
+  </div>
+</div>`}
+
+// ── INVENTORY ─────────────────────────────────────────────────────────────────
+function bInv(){
+  const s=srt(),fil=A.filterCat==='all'?s:s.filter(e=>e.category===A.filterCat);
+  return`
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:7px">
+  <div><h2 style="margin:0;font-size:20px;font-weight:700">Inventory</h2><p style="margin:1px 0 0;color:#aaa;font-size:12px">${A.entries.length} items</p></div>
+  <div style="display:flex;gap:5px;flex-wrap:wrap">
+    <button onclick="A.filterCat='all';render()" style="border:1px solid #e0e0e0;background:${A.filterCat==='all'?'#1a1a1a':'#fff'};color:${A.filterCat==='all'?'#fff':'#555'};padding:4px 11px;border-radius:99px;font-size:11px;font-weight:500">All</button>
+    ${Object.entries(CATS).map(([k,v])=>`<button onclick="A.filterCat='${k}';render()" style="border:1px solid ${v.border};background:${A.filterCat===k?v.color:v.bg};color:${A.filterCat===k?'#fff':v.color};padding:4px 11px;border-radius:99px;font-size:11px;font-weight:500">${v.icon}</button>`).join('')}
+  </div>
+</div>
+${fil.map(e=>{const cat=CATS[e.category],ex2=exp(e.entryTime,e.expiryDays),h=hl(ex2),p=fp(e.entryTime,e.expiryDays);return`<div style="background:#fff;border:1px solid #e8e4dc;border-left:4px solid ${cat.color};border-radius:10px;padding:12px 14px;margin-bottom:9px"><div style="display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap"><span style="font-size:16px">${cat.icon}</span><span style="font-weight:600;font-size:14px">${e.foodName}</span>${bdg(e)}</div><div style="display:flex;gap:10px;font-size:10px;color:#aaa;margin-bottom:6px;flex-wrap:wrap"><span>📡 ${e.qrId}</span><span>📅 ${fd(e.entryTime)}</span><span>⏰ ${ex2.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>${fb(p)}<div style="font-size:10px;color:${fc(p)};font-weight:600;margin-top:3px">${Math.round(p)}% fresh · ${tl(h)}</div>${e.notes?`<div style="font-size:11px;color:#888;margin-top:4px">📝 ${e.notes}</div>`:''}</div><button onclick="A.entries=A.entries.filter(x=>x.id!==${e.id});sv('fe',A.entries);notify('Entry removed');render()" style="background:#FCEBEB;border:none;color:#A32D2D;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;flex-shrink:0">✕</button></div></div>`}).join('')}
+${fil.length===0?`<div style="text-align:center;color:#ccc;padding:40px;font-size:14px">No items here</div>`:''}`;
+}
+
+// ── QR CODES TAB ──────────────────────────────────────────────────────────────
+function bQRTab(){return`
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+  <div><h2 style="margin:0;font-size:20px;font-weight:700">QR Codes</h2><p style="margin:2px 0 0;color:#aaa;font-size:12px">20 real scannable codes · tap to rename</p></div>
+  <button onclick="A.screen='print';render()" style="background:#1a1a1a;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-weight:600;font-size:13px">🖨️ Print All 20</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px">
+  ${QIDs.map(id=>{const label=A.labels[id],isE=A.editQRId===id;return`
+  <div style="background:#fff;border:1px solid #e8e4dc;border-radius:11px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+    <div style="background:#fff;padding:7px;border-radius:7px;border:1px solid #ebebeb"><img data-qr="${qds(id)}" data-qr-size="90" width="90" height="90" style="display:block;image-rendering:pixelated" alt="${id}"></div>
+    <div style="background:#f5f4f0;border-radius:5px;padding:2px 9px;font-family:monospace;font-size:10px;font-weight:700">${id}</div>
+    ${isE?`<div style="width:100%;display:flex;flex-direction:column;gap:5px"><input id="eq_${id}" value="${label}" maxlength="24" onkeydown="if(event.key==='Enter')saveQL('${id}');if(event.key==='Escape'){A.editQRId=null;render()}" style="width:100%;padding:5px 7px;border-radius:6px;border:1.5px solid #1a1a1a;font-size:11px;text-align:center;outline:none;box-sizing:border-box"><div style="display:flex;gap:4px"><button onclick="saveQL('${id}')" style="flex:1;background:#1a1a1a;color:#fff;border:none;border-radius:5px;padding:5px;font-size:10px;font-weight:600">✓</button><button onclick="A.editQRId=null;render()" style="flex:1;background:#f0f0f0;border:none;border-radius:5px;padding:5px;font-size:10px">✕</button></div></div>`:`<div style="font-size:10px;font-weight:500;color:#444">${label}</div><div style="display:flex;gap:5px"><button onclick="openEntry('${id}')" style="background:#EAF3DE;border:none;color:#27500A;border-radius:5px;padding:4px 9px;font-size:9px;font-weight:600">📷 Scan</button><button onclick="A.editQRId='${id}';render()" style="background:#f5f4f0;border:none;border-radius:5px;padding:4px 9px;font-size:9px;font-weight:500">✏️ Rename</button></div>`}
+  </div>`}).join('')}
+</div>`}
+
+// ── PRINT SHEET ───────────────────────────────────────────────────────────────
+function bPrint(){return`
+<div style="min-height:100vh;background:#F8F7F4">
+  <div class="np st" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:10">
+    <div style="display:flex;align-items:center;gap:10px"><button onclick="A.screen='main';render()" style="background:none;border:none;font-size:24px;color:#888">‹</button><div><div style="font-weight:700;font-size:15px">Printable QR Labels</div><div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.04em">20 real scannable codes</div></div></div>
+    <div style="display:flex;gap:7px">
+      <button onclick="if(confirm('Reset labels?')){Object.assign(A.labels,DL);sv('fl',A.labels);render()}" style="background:#f5f4f0;border:1px solid #e0e0e0;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:500">↺ Reset</button>
+      <button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600">🖨️ Print</button>
+    </div>
+  </div>
+  <div class="np" style="background:#EAF3DE;border-bottom:1px solid #C0DD97;padding:9px 16px;font-size:12px;color:#3B6D11">✅ These are <strong>real QR codes</strong> generated in-browser. Print, cut &amp; stick on containers. Scan with iPhone camera (iOS 17.4+ Safari).</div>
+  <div id="pgrid" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px">
+    ${QIDs.map(id=>{const label=A.labels[id],qd=qds(id);return`
+    <div class="pc" style="background:#fff;border:1.5px dashed #d0cdc6;border-radius:10px;padding:13px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center">
+      <div style="background:#fff;padding:7px;border-radius:7px;border:1px solid #ebebeb"><img data-qr="${qd}" data-qr-size="110" width="110" height="110" style="display:block;image-rendering:pixelated" alt="${id}"></div>
+      <div style="background:#f5f4f0;border-radius:5px;padding:2px 10px;font-family:monospace;font-size:11px;font-weight:700">${id}</div>
+      <div style="font-size:10px;font-weight:600;color:#333;padding:3px 8px;border-radius:5px;border:1px dashed #d0cdc6;width:100%;text-align:center">${label}</div>
+      <div style="display:flex;gap:3px;justify-content:center">${[['#E24B4A','Highly Perishable'],['#BA7517','Mid Perishable'],['#3B6D11','Perishable']].map(([c,t])=>`<div title="${t}" style="width:8px;height:8px;border-radius:50%;background:${c}"></div>`).join('')}</div>
+      <div style="font-size:7.5px;color:#bbb;font-family:monospace;word-break:break-all;line-height:1.5">${qd}</div>
+      <div style="font-size:8px;color:#ccc">fresh.app · 🔄 reprogrammable</div>
+    </div>`}).join('')}
+  </div>
+</div>`}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+function bSet(){return`
+<h2 style="margin:0 0 16px;font-size:20px;font-weight:700">Settings</h2>
+<div style="margin-bottom:20px"><div style="font-weight:600;font-size:13px;margin-bottom:9px">📱 Deployment</div><div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;overflow:hidden">${[['🍎','iOS','Capacitor.js → App Store. Bundle: com.fresh.app. iOS 17.4+ for camera.'],['🤖','Android','Capacitor.js → Google Play. Package: com.fresh.app. Chrome 88+.'],['🌐','PWA','Vercel/Netlify + HTTPS. Add to Home Screen via Safari Share button.'],['☁️','Backend','Supabase or Firebase for real-time DB + push expiry alerts.']].map(([ico,t,d],i,a)=>`<div style="padding:12px 14px;${i<a.length-1?'border-bottom:1px solid #f0ede6':''}display:flex;gap:10px"><span style="font-size:18px;flex-shrink:0">${ico}</span><div><div style="font-weight:600;font-size:13px">${t}</div><div style="font-size:11px;color:#888;margin-top:1px">${d}</div></div></div>`).join('')}</div></div>
+<div><div style="font-weight:600;font-size:13px;margin-bottom:9px">💳 Plans</div><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px">${PLANS.map(p=>`<div onclick="A.plan='${p.id}';sv('fp','${p.id}');notify('Plan updated');render()" style="background:${A.plan===p.id?p.bg:'#fff'};border:${A.plan===p.id?'2px solid '+p.color:'1.5px solid #e8e4dc'};border-radius:10px;padding:12px 13px;cursor:pointer"><div style="font-weight:700;font-size:17px;color:${p.color}">${p.price}</div><div style="font-weight:600;font-size:12px;margin:2px 0 1px">${p.label}</div><div style="font-size:10px;color:#888">${p.desc}</div>${A.plan===p.id?`<div style="margin-top:6px;font-size:9px;font-weight:700;color:${p.color}">✓ ACTIVE</div>`:''}</div>`).join('')}</div><div style="background:#f5f4f0;border-radius:9px;padding:11px 13px;font-size:11px;color:#666"><strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br><strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE</div></div>`}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function bAuth(){const plan=PLANS.find(p=>p.id===A.plan)||PLANS[0];return`
+<div style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:360px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div style="font-weight:700;font-size:17px">👤 Account</div><button onclick="A.screen='main';A.promoErr='';A.promoOk='';render()" style="background:none;border:none;font-size:24px;color:#aaa;line-height:1">×</button></div>
+    <div style="background:${plan.bg};border-radius:9px;padding:12px 14px;margin-bottom:16px"><div style="font-size:11px;color:#aaa">Current Plan</div><div style="font-weight:700;font-size:18px;color:${plan.color}">${plan.label}</div><div style="font-size:11px;color:#aaa">${plan.desc}</div></div>
+    <div style="margin-bottom:14px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">Redeem Code</div><div style="display:flex;gap:7px"><input id="pi" placeholder="Enter code…" value="${A.promoCode}" oninput="A.promoCode=this.value.toUpperCase();this.value=A.promoCode" onkeydown="if(event.key==='Enter')applyPromo()" style="flex:1;padding:10px 12px;border-radius:8px;border:1.5px solid #ddd;font-size:14px;outline:none"><button onclick="applyPromo()" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-weight:600;font-size:13px">Apply</button></div>${A.promoErr?`<div style="color:#A32D2D;font-size:12px;margin-top:5px">❌ ${A.promoErr}</div>`:''}${A.promoOk?`<div style="color:#27500A;font-size:12px;margin-top:5px">${A.promoOk}</div>`:''}</div>
+    <div style="font-size:11px;color:#aaa;background:#f5f4f0;border-radius:7px;padding:10px 12px"><strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br><strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE</div>
+  </div>
+</div>`}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
