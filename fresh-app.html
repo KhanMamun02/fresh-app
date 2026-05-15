@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fresh">
+<meta name="theme-color" content="#1a1a1a">
+<title>Fresh — Food Safety QR</title>
+<script src="https://unpkg.com/@zxing/browser@0.1.1/umd/index.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:#F8F7F4;color:#1a1a1a;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button,input,textarea,select{font-family:inherit}
+button{cursor:pointer}
+input,textarea{-webkit-appearance:none;appearance:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:#ccc;border-radius:99px}
+.fade{animation:fadeUp 0.22s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scanline{0%{top:8px}100%{top:calc(100% - 8px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scan-line{position:absolute;left:8px;right:8px;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);border-radius:2px;animation:scanline 2s ease-in-out infinite}
+.safe-top{padding-top:env(safe-area-inset-top,0px)}
+.safe-bottom{padding-bottom:env(safe-area-inset-bottom,16px)}
+@media print{
+  .no-print{display:none!important}
+  body{background:#fff}
+  #print-grid{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:0!important;padding:8px!important}
+  .print-card{border-radius:0!important;page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const DEFAULT_QR_LABELS={'FR-001':'Kitchen Station A','FR-002':'Kitchen Station B','FR-003':'Prep Counter 1','FR-004':'Prep Counter 2','FR-005':'Storage Shelf A','FR-006':'Storage Shelf B','FR-007':'Fridge Slot 1','FR-008':'Fridge Slot 2','FR-009':'Pantry Row 1','FR-010':'Pantry Row 2','FR-011':'Freezer Bay 1','FR-012':'Freezer Bay 2','FR-013':'Service Counter','FR-014':'Hot Hold Unit','FR-015':'Cold Hold Unit','FR-016':'Dry Store','FR-017':'Receiving Dock','FR-018':'Bakery Station','FR-019':'Grill Station','FR-020':'Salad Bar'};
+const QR_IDS=Object.keys(DEFAULT_QR_LABELS);
+const CATS={highly_perishable:{label:'Highly Perishable',sub:'Raw ingredients',days:1,color:'#E24B4A',bg:'#FCEBEB',border:'#F09595',icon:'🥩'},mid_perishable:{label:'Mid Perishable',sub:'Curries & cooked meals',days:3,color:'#BA7517',bg:'#FAEEDA',border:'#EF9F27',icon:'🍛'},perishable:{label:'Perishable',sub:'Oil-cooked foods',days:4,color:'#3B6D11',bg:'#EAF3DE',border:'#97C459',icon:'🍳'}};
+const PLANS=[{id:'free_trial',label:'30-Day Free Trial',price:'$0',desc:'Beta users with promo code',color:'#3B6D11',bg:'#EAF3DE'},{id:'basic',label:'Basic',price:'$4.99/mo',desc:'Up to 20 QR codes, 1 user',color:'#185FA5',bg:'#E6F1FB'},{id:'pro',label:'Pro',price:'$12.99/mo',desc:'Unlimited QR codes, 5 users',color:'#533AB7',bg:'#EEEDFE'},{id:'enterprise',label:'Enterprise',price:'$29.99/mo',desc:'Unlimited + API + analytics',color:'#993C1D',bg:'#FAECE7'}];
+const BETA_CODES=['BETA2024','FRESH30','FTRIAL1','EARLYBIRD'];
+const DEV_CODES=['DEV-OWNER-001','DEV-TEST-002','ADMIN-FREE'];
+function loadLS(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+function hoursAgo(h){return new Date(Date.now()-h*3600000).toISOString()}
+const APP={tab:'dashboard',screen:'main',entries:loadLS('fresh_entries',[{id:1,qrId:'FR-001',foodName:'Chicken Breast',category:'highly_perishable',entryTime:hoursAgo(3),expiryDays:1,notes:'Batch #A12'},{id:2,qrId:'FR-002',foodName:'Lamb Curry',category:'mid_perishable',entryTime:hoursAgo(26),expiryDays:3,notes:'Chef special'},{id:3,qrId:'FR-003',foodName:'Fried Tofu',category:'perishable',entryTime:hoursAgo(72),expiryDays:4,notes:''},{id:4,qrId:'FR-004',foodName:'Raw Salmon',category:'highly_perishable',entryTime:hoursAgo(20),expiryDays:1,notes:'Delivery #D99'},{id:5,qrId:'FR-005',foodName:'Beef Rendang',category:'mid_perishable',entryTime:hoursAgo(48),expiryDays:3,notes:''},{id:6,qrId:'FR-006',foodName:'Stir-fried Veggies',category:'perishable',entryTime:hoursAgo(12),expiryDays:4,notes:'Batch B'}]),qrLabels:loadLS('fresh_qr_labels',{...DEFAULT_QR_LABELS}),userPlan:loadLS('fresh_plan','free_trial'),filterCat:'all',notification:null,cameraStream:null,zxingReader:null,cameraError:null,cameraLoading:false,entryQR:null,entryStep:0,entryForm:{},promoCode:'',promoError:'',promoSuccess:'',editQRId:null,lastEntry:null};
+function getExpiry(t,d){const x=new Date(t);x.setDate(x.getDate()+d);return x}
+function hoursLeft(e){return(new Date(e)-Date.now())/3600000}
+function freshPct(t,d){const tot=d*864e5,el=Date.now()-new Date(t);return Math.max(0,Math.min(100,((tot-el)/tot)*100))}
+function fColor(p){return p>60?'#3B6D11':p>25?'#BA7517':'#E24B4A'}
+function tLeft(h){if(h<=0)return'EXPIRED';if(h<1)return Math.round(h*60)+'m left';if(h<24)return Math.round(h)+'h left';return Math.floor(h/24)+'d '+Math.round(h%24)+'h left'}
+function fmtDT(iso){return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function statusInfo(e){const p=freshPct(e.entryTime,e.expiryDays),h=hoursLeft(getExpiry(e.entryTime,e.expiryDays));if(h<=0)return{label:'Expired',bg:'#FCEBEB',color:'#A32D2D'};if(p<25)return{label:'Critical',bg:'#FCEBEB',color:'#A32D2D'};if(p<60)return{label:'Use Soon',bg:'#FAEEDA',color:'#854F0B'};return{label:'Fresh',bg:'#EAF3DE',color:'#27500A'}}
+function fBar(p,h=6){return`<div style="background:#f0f0f0;border-radius:99px;height:${h}px;overflow:hidden;width:100%"><div style="background:${fColor(p)};width:${p}%;height:100%;border-radius:99px"></div></div>`}
+function badge(e){const s=statusInfo(e);return`<span style="background:${s.bg};color:${s.color};font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px">${s.label}</span>`}
+function notify(msg,type='success'){APP.notification={msg,type};render();clearTimeout(APP._nt);APP._nt=setTimeout(()=>{APP.notification=null;render()},2800)}
+
+// QR SVG
+function qrMatrix(text){let h=0;for(let i=0;i<text.length;i++)h=((h<<5)-h+text.charCodeAt(i))|0;const S=25;return Array.from({length:S},(_,r)=>Array.from({length:S},(_,c)=>{if(r<7&&c<7){if(r===0||r===6||c===0||c===6)return 1;if(r>=2&&r<=4&&c>=2&&c<=4)return 1;return 0}if(r<7&&c>=S-7){const fc=c-(S-7);if(r===0||r===6||fc===0||fc===6)return 1;if(r>=2&&r<=4&&fc>=2&&fc<=4)return 1;return 0}if(r>=S-7&&c<7){const fr=r-(S-7);if(fr===0||fr===6||c===0||c===6)return 1;if(fr>=2&&fr<=4&&c>=2&&c<=4)return 1;return 0}if(r===6||c===6)return(r+c)%2===0?1:0;return((h^(r*37+c*19+r*c*3+(h>>>r)))&1)}))}
+function qrSVG(text,size=90){const m=qrMatrix(text),S=m.length,cs=size/S;let r='';m.forEach((row,ri)=>row.forEach((cell,ci)=>{if(cell)r+=`<rect x="${(ci*cs).toFixed(1)}" y="${(ri*cs).toFixed(1)}" width="${(cs+0.3).toFixed(1)}" height="${(cs+0.3).toFixed(1)}" fill="#111"/>`}));return`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" style="display:block">${r}</svg>`}
+
+// Camera
+async function startCamera(){APP.screen='camera';APP.cameraError=null;APP.cameraLoading=true;render();await new Promise(r=>setTimeout(r,120));const video=document.getElementById('qr-video');if(!video){APP.cameraError='Video element not found.';APP.cameraLoading=false;render();return}try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});APP.cameraStream=stream;video.srcObject=stream;video.setAttribute('playsinline','true');video.setAttribute('autoplay','true');await video.play();APP.cameraLoading=false;render();if(typeof ZXingBrowser==='undefined'){APP.cameraError='QR decoder failed to load. Please check your internet connection, or use manual entry.';render();return}const hints=new Map();hints.set(2,[11]);const reader=new ZXingBrowser.BrowserMultiFormatReader(hints);APP.zxingReader=reader;reader.decodeFromVideoElement(video,result=>{if(result){const text=result.getText();stopCamera();handleScanned(text)}})}catch(err){APP.cameraLoading=false;if(err.name==='NotAllowedError')APP.cameraError='Camera permission denied.\n\n📱 iPhone fix:\nSettings → Safari → Camera → Allow\n\nThen try again.';else if(err.name==='NotFoundError')APP.cameraError='No camera found on this device.';else if(err.name==='NotSupportedError')APP.cameraError='Camera not supported.\nPlease open this app in Safari on iPhone.';else APP.cameraError='Camera error: '+err.message;render()}}
+function stopCamera(){try{APP.zxingReader&&APP.zxingReader.reset()}catch{}APP.cameraStream&&APP.cameraStream.getTracks().forEach(t=>t.stop());APP.cameraStream=null;APP.zxingReader=null}
+function handleScanned(text){let id=text.trim().toUpperCase();const m=text.match(/FRESH:([A-Z0-9\-]+)/i);if(m)id=m[1].toUpperCase();openEntryForm(id)}
+function openEntryForm(id){const label=APP.qrLabels[id]||id;APP.entryQR={id,label};APP.entryStep=0;APP.entryForm={foodName:'',category:'',customDays:null,notes:'',entryTime:new Date().toISOString()};APP.screen='entry';render()}
+function entryNext(){const step=APP.entryStep,d=APP.entryForm;if(step<2){APP.entryStep++;render();return}const cat=CATS[d.category]||CATS.perishable;const entry={id:Date.now(),qrId:APP.entryQR.id,foodName:d.foodName,category:d.category,entryTime:d.entryTime,expiryDays:d.customDays||cat.days,notes:d.notes||''};APP.entries.unshift(entry);APP.lastEntry=entry;APP.qrLabels[entry.qrId]=entry.foodName;saveLS('fresh_qr_labels',APP.qrLabels);saveLS('fresh_entries',APP.entries.slice(0,100));APP.screen='success';render()}
+function saveQR(id){const inp=document.getElementById('eqr_'+id);if(inp&&inp.value.trim())APP.qrLabels[id]=inp.value.trim();saveLS('fresh_qr_labels',APP.qrLabels);APP.editQRId=null;notify('QR label updated')}
+function applyPromo(){const code=(APP.promoCode||'').toUpperCase();APP.promoError='';APP.promoSuccess='';if(BETA_CODES.includes(code)){APP.userPlan='free_trial';saveLS('fresh_plan','free_trial');APP.promoSuccess='🎉 Beta code accepted! 30-day free trial activated.'}else if(DEV_CODES.includes(code)){APP.userPlan='enterprise';saveLS('fresh_plan','enterprise');APP.promoSuccess='🛠️ Developer code accepted! Full access granted.'}else APP.promoError='Invalid code. Try BETA2024 for beta trial.';render()}
+
+// RENDER
+function render(){const app=document.getElementById('app');if(!app)return;const scr=APP.screen;if(scr==='camera'){app.innerHTML=buildCamera();return}if(scr==='manual'){app.innerHTML=buildManual();return}if(scr==='entry'){app.innerHTML=buildEntry();return}if(scr==='print'){app.innerHTML=buildPrint();return}if(scr==='success'){app.innerHTML=buildSuccess();return}app.innerHTML=buildMain()}
+
+function buildMain(){
+  const expired=APP.entries.filter(e=>hoursLeft(getExpiry(e.entryTime,e.expiryDays))<=0).length;
+  const crit=APP.entries.filter(e=>{const p=freshPct(e.entryTime,e.expiryDays);return p<25&&p>0}).length;
+  const tabContent={dashboard:buildDashboard(),scan:buildScanTab(),inventory:buildInventory(),qrcodes:buildQRCodes(),settings:buildSettings()}[APP.tab]||'';
+  return`${APP.notification?`<div style="position:fixed;top:max(env(safe-area-inset-top,0px),16px);left:50%;transform:translateX(-50%);background:${APP.notification.type==='error'?'#FCEBEB':'#EAF3DE'};color:${APP.notification.type==='error'?'#A32D2D':'#27500A'};padding:9px 20px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:0 3px 16px rgba(0,0,0,0.14);z-index:9999;white-space:nowrap;max-width:90vw;text-align:center">${APP.notification.msg}</div>`:''}
+  <div class="no-print safe-top" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:34px;height:34px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px">🥗</div>
+      <div><div style="font-weight:700;font-size:16px;letter-spacing:-0.02em">Fresh</div><div style="font-size:9px;color:#aaa;letter-spacing:0.06em;text-transform:uppercase">Food Safety QR</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      ${(expired+crit)>0?`<div style="background:#FCEBEB;color:#A32D2D;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px">⚠️ ${expired+crit}</div>`:''}
+      <button onclick="APP.screen='auth';render()" style="background:#f5f4f0;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:500">👤</button>
+    </div>
+  </div>
+  <div class="no-print" style="background:#fff;border-bottom:1px solid #e8e4dc;display:flex;overflow-x:auto;padding:0 4px;-webkit-overflow-scrolling:touch">
+    ${[['dashboard','📊','Dashboard'],['scan','📷','Scan'],['inventory','📋','Inventory'],['qrcodes','⬛','QR Codes'],['settings','⚙️','Settings']].map(([id,ico,lbl])=>`<button onclick="APP.tab='${id}';render()" style="border:none;background:none;padding:10px 13px;font-size:12px;font-weight:${APP.tab===id?'600':'400'};color:${APP.tab===id?'#1a1a1a':'#999'};border-bottom:${APP.tab===id?'2.5px solid #1a1a1a':'2.5px solid transparent'};white-space:nowrap;display:flex;align-items:center;gap:4px"><span>${ico}</span>${lbl}</button>`).join('')}
+  </div>
+  <div style="padding:16px;max-width:860px;margin:0 auto;padding-bottom:40px" class="fade">${tabContent}</div>
+  ${APP.screen==='auth'?buildAuth():''}`;
+}
+
+function buildDashboard(){
+  const sorted=[...APP.entries].sort((a,b)=>getExpiry(a.entryTime,a.expiryDays)-getExpiry(b.entryTime,b.expiryDays));
+  const expired=APP.entries.filter(e=>hoursLeft(getExpiry(e.entryTime,e.expiryDays))<=0).length;
+  const crit=APP.entries.filter(e=>{const p=freshPct(e.entryTime,e.expiryDays);return p<25&&p>0}).length;
+  const fresh=APP.entries.filter(e=>freshPct(e.entryTime,e.expiryDays)>60).length;
+  const cc=Object.fromEntries(Object.keys(CATS).map(k=>[k,APP.entries.filter(e=>e.category===k).length]));
+  return`<div style="margin-bottom:16px"><h2 style="margin:0 0 2px;font-size:20px;font-weight:700">Dashboard</h2><p style="margin:0;color:#999;font-size:12px">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p></div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px">${[['Total',APP.entries.length,'#1a1a1a','#f5f4f0'],['Fresh',fresh,'#27500A','#EAF3DE'],['Use Soon',crit,'#854F0B','#FAEEDA'],['Expired',expired,'#A32D2D','#FCEBEB']].map(([l,v,c,bg])=>`<div style="background:${bg};border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:${c};opacity:0.7;margin-bottom:2px">${l}</div><div style="font-size:28px;font-weight:700;color:${c}">${v}</div></div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;margin-bottom:16px">${Object.entries(CATS).map(([k,cat])=>`<div style="background:#fff;border:1px solid ${cat.border};border-left:4px solid ${cat.color};border-radius:10px;padding:12px 13px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span style="font-size:18px">${cat.icon}</span><div><div style="font-weight:600;font-size:13px">${cat.label}</div><div style="font-size:10px;color:#aaa">${cat.sub}</div></div></div><div style="font-size:24px;font-weight:700;color:${cat.color}">${cc[k]}</div><div style="font-size:10px;color:#aaa">items · max ${cat.days}d</div></div>`).join('')}</div>
+  <div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;overflow:hidden;margin-bottom:16px"><div style="padding:11px 14px;border-bottom:1px solid #f0ede6;display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:14px">⚡ Priority Queue</div><div style="font-size:11px;color:#aaa">by urgency</div></div>${sorted.map((e,i)=>{const cat=CATS[e.category],h=hoursLeft(getExpiry(e.entryTime,e.expiryDays)),p=freshPct(e.entryTime,e.expiryDays),s=statusInfo(e);return`<div style="padding:9px 14px;${i<sorted.length-1?'border-bottom:1px solid #f8f6f2':''}display:flex;align-items:center;gap:9px"><div style="width:24px;height:24px;background:${cat.bg};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${cat.icon}</div><div style="flex:1;min-width:0"><div style="font-weight:500;font-size:13px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.foodName}</div>${fBar(p)}</div><div style="text-align:right;min-width:68px;flex-shrink:0"><span style="background:${s.bg};color:${s.color};font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px">${s.label}</span><div style="font-size:10px;color:#aaa;margin-top:2px">${tLeft(h)}</div></div></div>`}).join('')}</div>
+  <div style="background:#fff;border:1px solid #e8e4dc;border-radius:12px;padding:13px 15px"><div style="font-weight:600;font-size:13px;margin-bottom:12px">📈 Freshness Profile</div>${sorted.map(e=>{const cat=CATS[e.category],p=freshPct(e.entryTime,e.expiryDays),ex=getExpiry(e.entryTime,e.expiryDays);return`<div style="display:grid;grid-template-columns:120px 1fr 65px;align-items:center;gap:8px;margin-bottom:7px"><div style="display:flex;align-items:center;gap:5px;overflow:hidden"><span style="font-size:11px">${cat.icon}</span><span style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.foodName}</span></div>${fBar(p,6)}<div style="font-size:10px;color:#aaa;text-align:right">${ex.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>`}).join('')}</div>`}
+
+function buildScanTab(){return`<h2 style="margin:0 0 4px;font-size:20px;font-weight:700">Scan &amp; Log Food</h2><p style="margin:0 0 18px;color:#999;font-size:13px">Use iPhone camera or enter QR ID manually.</p>
+  <button onclick="startCamera()" style="width:100%;background:#1a1a1a;color:#fff;border:none;border-radius:16px;padding:0;overflow:hidden;margin-bottom:11px"><div style="padding:20px;display:flex;align-items:center;gap:14px"><div style="width:50px;height:50px;background:rgba(255,255,255,0.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:25px;flex-shrink:0">📷</div><div style="text-align:left"><div style="font-weight:700;font-size:16px">Use iPhone Camera</div><div style="font-size:12px;opacity:0.55;margin-top:2px">Point at FR-001 to FR-020 labels</div></div><div style="margin-left:auto;font-size:20px;opacity:0.35">›</div></div></button>
+  <button onclick="APP.screen='manual';render()" style="width:100%;background:#fff;color:#1a1a1a;border:1.5px solid #e8e4dc;border-radius:16px;padding:16px 18px;display:flex;align-items:center;gap:13px;margin-bottom:22px"><div style="width:40px;height:40px;background:#f5f4f0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">⌨️</div><div style="text-align:left"><div style="font-weight:600;font-size:15px">Enter QR ID Manually</div><div style="font-size:12px;color:#aaa;margin-top:1px">Type FR-001 through FR-020</div></div><div style="margin-left:auto;font-size:18px;color:#ccc">›</div></button>
+  <div style="background:#EAF3DE;border:1px solid #C0DD97;border-radius:12px;padding:13px 15px"><div style="font-weight:600;font-size:13px;color:#27500A;margin-bottom:7px">📱 iPhone Camera Tips</div><div style="font-size:12px;color:#3B6D11;line-height:1.9">1. Open Fresh in <strong>Safari</strong> (required)<br>2. Tap <strong>Use iPhone Camera</strong> above<br>3. Allow camera when prompted<br>4. If denied: <strong>Settings → Safari → Camera → Allow</strong></div></div>`}
+
+function buildCamera(){return`<div style="position:fixed;inset:0;background:#000;z-index:500;display:flex;flex-direction:column">
+  <div class="safe-top" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:10;position:relative">
+    <button onclick="stopCamera();APP.screen='main';render()" style="background:rgba(255,255,255,0.12);border:none;color:#fff;border-radius:99px;padding:8px 16px;font-size:13px;font-weight:500">‹ Back</button>
+    <div style="color:#fff;font-size:14px;font-weight:600">Scan QR Label</div>
+    <div style="width:72px"></div>
+  </div>
+  <div style="flex:1;position:relative;display:flex;align-items:center;justify-content:center">
+    <video id="qr-video" playsinline autoplay muted style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1"></video>
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.5);z-index:2"></div>
+    <div style="position:relative;z-index:3;width:230px;height:230px">
+      <div style="position:absolute;inset:0;border:1px solid rgba(255,255,255,0.15);border-radius:12px"></div>
+      <div style="position:absolute;top:0;left:0;width:22px;height:22px;border-color:#22c55e;border-style:solid;border-width:3px 0 0 3px;border-radius:4px 0 0 0"></div>
+      <div style="position:absolute;top:0;right:0;width:22px;height:22px;border-color:#22c55e;border-style:solid;border-width:3px 3px 0 0;border-radius:0 4px 0 0"></div>
+      <div style="position:absolute;bottom:0;left:0;width:22px;height:22px;border-color:#22c55e;border-style:solid;border-width:0 0 3px 3px;border-radius:0 0 0 4px"></div>
+      <div style="position:absolute;bottom:0;right:0;width:22px;height:22px;border-color:#22c55e;border-style:solid;border-width:0 3px 3px 0;border-radius:0 0 4px 0"></div>
+      <div class="scan-line"></div>
+    </div>
+    ${APP.cameraLoading?`<div style="position:absolute;z-index:4;text-align:center"><div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px"></div><div style="color:#fff;font-size:13px">Starting camera…</div></div>`:''}
+    ${!APP.cameraError&&!APP.cameraLoading?`<div style="position:absolute;bottom:30px;z-index:3;text-align:center;padding:0 30px"><div style="color:#fff;font-size:14px;font-weight:600">Hold steady over QR label</div><div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:4px">Reads all Fresh FR-001 to FR-020</div></div>`:''}
+    ${APP.cameraError?`<div style="position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.9);padding:28px;text-align:center"><div style="font-size:42px;margin-bottom:14px">📵</div><div style="color:#fff;font-size:16px;font-weight:600;margin-bottom:8px">Camera Access Needed</div><div style="color:rgba(255,255,255,0.6);font-size:13px;margin-bottom:22px;line-height:1.7;white-space:pre-line">${APP.cameraError}</div><button onclick="stopCamera();APP.screen='manual';render()" style="background:#fff;color:#1a1a1a;border:none;border-radius:10px;padding:12px 24px;font-weight:700;font-size:14px;margin-bottom:10px;width:100%">⌨️ Use Manual Entry</button><button onclick="stopCamera();APP.screen='main';render()" style="background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;width:100%">Go Back</button></div>`:''}
+  </div>
+  <div class="safe-bottom" style="padding:14px 16px 0;z-index:10;position:relative">
+    <div style="background:rgba(255,255,255,0.08);border-radius:11px;padding:12px 15px;margin-bottom:9px;display:flex;align-items:center;gap:10px"><span style="font-size:17px">💡</span><div style="color:rgba(255,255,255,0.65);font-size:12px;line-height:1.5">Ensure good lighting. Use <strong style="color:#fff">Safari</strong> on iPhone.</div></div>
+    <button onclick="stopCamera();APP.screen='manual';render()" style="width:100%;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:13px;font-size:14px;font-weight:500">⌨️ Enter QR ID Manually Instead</button>
+  </div>
+</div>`}
+
+function buildManual(){return`<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div class="safe-top" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:13px 15px;display:flex;align-items:center;gap:11px;position:sticky;top:0;z-index:10">
+    <button onclick="APP.screen='main';render()" style="background:none;border:none;font-size:22px;color:#888;line-height:1">‹</button>
+    <div style="font-weight:700;font-size:16px">Select QR Code</div>
+  </div>
+  <div style="padding:14px">
+    <div style="font-size:12px;color:#aaa;margin-bottom:11px">Tap any QR to log food for that station:</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:18px">
+      ${QR_IDS.map(id=>`<button onclick="APP.screen='main';openEntryForm('${id}')" style="background:#fff;border:1.5px solid #e8e4dc;border-radius:9px;padding:9px 5px;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="background:#fff;padding:4px;border-radius:4px;border:1px solid #eee">${qrSVG('FRESH:'+id,38)}</div><div style="font-size:9px;font-family:monospace;font-weight:700;color:#1a1a1a">${id}</div><div style="font-size:8px;color:#aaa;text-align:center;line-height:1.2">${APP.qrLabels[id]}</div></button>`).join('')}
+    </div>
+    <div style="background:#fff;border:1px solid #e8e4dc;border-radius:11px;padding:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:9px">Or type an ID:</div>
+      <div style="display:flex;gap:7px">
+        <input id="manual_id" placeholder="e.g. FR-007" maxlength="6" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'&&this.value.trim()){APP.screen='main';openEntryForm(this.value.trim())}" style="flex:1;padding:10px 12px;border-radius:8px;border:1.5px solid #ddd;font-size:14px;outline:none;text-transform:uppercase">
+        <button onclick="const v=document.getElementById('manual_id').value.trim();if(v){APP.screen='main';openEntryForm(v)}" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-weight:600;font-size:13px">Go</button>
+      </div>
+    </div>
+  </div>
+</div>`}
+
+function buildEntry(){
+  const qr=APP.entryQR,d=APP.entryForm,step=APP.entryStep,cat=CATS[d.category];
+  const titles=['What food is this?','Confirm time & expiry','Add notes'];
+  const canNext=step===0?!!(d.foodName&&d.foodName.trim()&&d.category):true;
+  const steps=[
+    `<input id="ent_food" placeholder="e.g. Chicken Breast, Lamb Curry…" value="${d.foodName||''}" oninput="APP.entryForm.foodName=this.value" style="width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid #ddd;font-size:15px;margin-bottom:13px;box-sizing:border-box;outline:none">${Object.entries(CATS).map(([k,c])=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1.5px solid ${d.category===k?c.color:'#e8e4dc'};background:${d.category===k?c.bg:'#fff'};cursor:pointer;margin-bottom:7px"><input type="radio" name="ecat" ${d.category===k?'checked':''} onchange="APP.entryForm.category='${k}';APP.entryForm.customDays=${CATS[k].days};render()" style="accent-color:${c.color};width:17px;height:17px;flex-shrink:0"><span style="font-size:19px">${c.icon}</span><div><div style="font-weight:600;font-size:14px">${c.label}</div><div style="font-size:11px;color:#aaa">${c.sub} · ${c.days}d max</div></div></label>`).join('')}`,
+    `<div style="display:flex;flex-direction:column;gap:11px"><div style="background:#f5f4f0;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#aaa;margin-bottom:2px">📅 Scan time (auto)</div><div style="font-weight:600;font-size:16px">${fmtDT(d.entryTime||new Date().toISOString())}</div></div>${cat?`<div style="background:${cat.bg};border-radius:10px;padding:12px 14px;border:1px solid ${cat.border}"><div style="font-size:11px;color:#aaa;margin-bottom:2px">Default expiry — ${cat.label}</div><div style="font-weight:700;font-size:20px;color:${cat.color}">${cat.days} day${cat.days>1?'s':''}</div></div>`:''}<div><div style="font-weight:600;font-size:13px;margin-bottom:8px">Override expiry:</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px">${[1,2,3,4].map(n=>`<button onclick="APP.entryForm.customDays=${n};render()" style="padding:11px 0;border:1.5px solid ${d.customDays===n?'#1a1a1a':'#e0e0e0'};background:${d.customDays===n?'#1a1a1a':'#fff'};color:${d.customDays===n?'#fff':'#444'};border-radius:10px;font-weight:700;font-size:16px">${n}d</button>`).join('')}</div></div>${d.foodName&&cat?`<div style="background:#EAF3DE;border-radius:10px;padding:10px 13px;border:1px solid #C0DD97"><div style="font-size:11px;color:#3B6D11;font-weight:600">Preview</div><div style="font-size:13px;color:#27500A;margin-top:2px">${d.foodName} · expires ${getExpiry(d.entryTime||new Date().toISOString(),d.customDays||1).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>`:''}</div>`,
+    `<div style="display:flex;flex-direction:column;gap:11px"><div style="background:#f5f4f0;border-radius:10px;padding:12px 14px"><div style="font-size:11px;color:#aaa">Logging:</div><div style="font-weight:600;font-size:15px;margin-top:2px">${d.foodName} → ${cat?cat.label:'?'}</div><div style="font-size:11px;color:#aaa;margin-top:2px">QR: ${qr.id} · Expires in ${d.customDays||1}d</div></div><textarea id="ent_notes" placeholder="Batch #, supplier, temp notes…" rows="3" oninput="APP.entryForm.notes=this.value" style="padding:11px 13px;border-radius:10px;border:1.5px solid #ddd;font-size:14px;resize:none;outline:none;box-sizing:border-box;width:100%">${d.notes||''}</textarea><div style="background:#fff;border:1px solid #e8e4dc;border-radius:10px;padding:11px 13px"><div style="font-size:11px;color:#aaa;margin-bottom:3px">🔄 QR Reprogram</div><div style="font-size:12px;color:#444"><strong>${qr.id}</strong> will now point to <strong>${d.foodName}</strong>.</div></div></div>`
+  ];
+  return`<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;display:flex;flex-direction:column;overflow:hidden">
+  <div class="safe-top" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:13px 15px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px">
+      <button onclick="APP.screen='main';render()" style="background:none;border:none;font-size:22px;color:#888;line-height:1">‹</button>
+      <div><div style="font-size:10px;color:#bbb;text-transform:uppercase;letter-spacing:0.05em">Step ${step+1} of 3 · <span style="font-family:monospace">${qr.id}</span></div><div style="font-weight:700;font-size:17px">${titles[step]}</div></div>
+    </div>
+    <div style="display:flex;gap:4px">${[0,1,2].map(i=>`<div style="flex:1;height:3px;border-radius:99px;background:${i<=step?'#1a1a1a':'#e8e4dc'}"></div>`).join('')}</div>
+  </div>
+  <div style="padding:11px 15px 0"><div style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e8e4dc;border-radius:99px;padding:4px 12px 4px 5px"><div style="width:20px;height:20px;background:#1a1a1a;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px">🥗</div><span style="font-size:12px;font-weight:600;font-family:monospace">${qr.id}</span><span style="font-size:11px;color:#aaa">${qr.label}</span><span style="font-size:12px">✅</span></div></div>
+  <div style="flex:1;padding:14px 15px;overflow-y:auto;-webkit-overflow-scrolling:touch">${steps[step]}</div>
+  <div class="safe-bottom" style="padding:11px 15px 0;background:#fff;border-top:1px solid #f0ede6">
+    <button onclick="entryNext()" ${!canNext?'disabled':''} style="width:100%;padding:14px;background:${canNext?'#1a1a1a':'#d0cdc6'};color:#fff;border:none;border-radius:12px;font-weight:700;font-size:16px;cursor:${canNext?'pointer':'not-allowed'}">${step===2?'✅ Log & Reprogram QR':'Continue →'}</button>
+  </div>
+</div>`}
+
+function buildSuccess(){
+  const e=APP.lastEntry;if(!e){APP.screen='main';render();return''}
+  const cat=CATS[e.category],ex=getExpiry(e.entryTime,e.expiryDays);
+  return`<div style="position:fixed;inset:0;background:#F8F7F4;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px">
+  <div style="width:100%;max-width:360px;text-align:center" class="fade">
+    <div style="width:78px;height:78px;background:#EAF3DE;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 18px">✅</div>
+    <div style="font-weight:700;font-size:22px;margin-bottom:5px">Entry Logged!</div>
+    <div style="font-size:14px;color:#aaa;margin-bottom:22px">QR code reprogrammed successfully</div>
+    <div style="background:#fff;border:1px solid #e8e4dc;border-left:5px solid ${cat.color};border-radius:13px;padding:16px;text-align:left;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px"><span style="font-size:24px">${cat.icon}</span><div><div style="font-weight:700;font-size:17px">${e.foodName}</div><div style="font-size:12px;color:#aaa">${cat.label}</div></div></div>
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">QR</span><span style="font-family:monospace;font-weight:600">${e.qrId}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">Logged</span><span>${fmtDT(e.entryTime)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#aaa">Expires</span><span style="font-weight:600;color:${cat.color}">${ex.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+        ${e.notes?`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:#aaa">Notes</span><span style="text-align:right">${e.notes}</span></div>`:''}
+      </div>
+    </div>
+    <button onclick="startCamera()" style="width:100%;background:#1a1a1a;color:#fff;border:none;border-radius:12px;padding:14px;font-weight:700;font-size:15px;margin-bottom:9px">📷 Scan Another QR</button>
+    <button onclick="APP.screen='main';render()" style="width:100%;background:#fff;color:#1a1a1a;border:1.5px solid #e8e4dc;border-radius:12px;padding:13px;font-weight:500;font-size:15px">Back to Dashboard</button>
+  </div>
+</div>`}
+
+function buildInventory(){
+  const sorted=[...APP.entries].sort((a,b)=>getExpiry(a.entryTime,a.expiryDays)-getExpiry(b.entryTime,b.expiryDays));
+  const filtered=APP.filterCat==='all'?sorted:sorted.filter(e=>e.category===APP.filterCat);
+  return`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:7px"><div><h2 style="margin:0;font-size:20px;font-weight:700">Inventory</h2><p style="margin:1px 0 0;color:#aaa;font-size:12px">${APP.entries.length} items</p></div><div style="display:flex;gap:5px;flex-wrap:wrap"><button onclick="APP.filterCat='all';render()" style="border:1px solid #e0e0e0;background:${APP.filterCat==='all'?'#1a1a1a':'#fff'};color:${APP.filterCat==='all'?'#fff':'#555'};padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">All</button>${Object.entries(CATS).map(([k,v])=>`<button onclick="APP.filterCat='${k}';render()" style="border:1px solid ${v.border};background:${APP.filterCat===k?v.color:v.bg};color:${APP.filterCat===k?'#fff':v.color};padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500">${v.icon}</button>`).join('')}</div></div>
+  ${filtered.map(e=>{const cat=CATS[e.category],ex=getExpiry(e.entryTime,e.expiryDays),h=hoursLeft(ex),p=freshPct(e.entryTime,e.expiryDays);return`<div style="background:#fff;border:1px solid #e8e4dc;border-left:4px solid ${cat.color};border-radius:10px;padding:11px 13px;margin-bottom:8px"><div style="display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap"><div style="flex:1;min-width:140px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:15px">${cat.icon}</span><span style="font-weight:600;font-size:14px">${e.foodName}</span>${badge(e)}</div><div style="display:flex;gap:10px;font-size:10px;color:#aaa;margin-bottom:6px;flex-wrap:wrap"><span>📡 ${e.qrId}</span><span>📅 ${fmtDT(e.entryTime)}</span><span>⏰ ${ex.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>${fBar(p)}<div style="font-size:10px;color:${fColor(p)};font-weight:600;margin-top:2px">${Math.round(p)}% fresh · ${tLeft(h)}</div>${e.notes?`<div style="font-size:11px;color:#888;margin-top:3px">📝 ${e.notes}</div>`:''}</div><button onclick="APP.entries=APP.entries.filter(x=>x.id!==${e.id});saveLS('fresh_entries',APP.entries);notify('Entry removed');render()" style="background:#FCEBEB;border:none;color:#A32D2D;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0">✕</button></div></div>`}).join('')}
+  ${filtered.length===0?`<div style="text-align:center;color:#ccc;padding:40px;font-size:14px">No items in this category</div>`:''}`}
+
+function buildQRCodes(){return`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2 style="margin:0;font-size:20px;font-weight:700">QR Codes</h2><p style="margin:2px 0 0;color:#aaa;font-size:12px">20 unique · tap to rename · reprogram on scan</p></div><button onclick="APP.screen='print';render()" style="background:#1a1a1a;color:#fff;border:none;border-radius:9px;padding:8px 16px;font-weight:600;font-size:12px">🖨️ Print All 20</button></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px">
+    ${QR_IDS.map(id=>{const label=APP.qrLabels[id],isEdit=APP.editQRId===id;return`<div style="background:#fff;border:1px solid #e8e4dc;border-radius:11px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center"><div style="background:#fff;padding:6px;border-radius:6px;border:1px solid #ebebeb;position:relative">${qrSVG('FRESH:'+id+':'+label,80)}<div style="position:absolute;bottom:8px;right:8px;width:14px;height:14px;background:#1a1a1a;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:7px">🥗</div></div><div style="background:#f5f4f0;border-radius:5px;padding:2px 9px;font-family:monospace;font-size:10px;font-weight:700">${id}</div>${isEdit?`<div style="width:100%;display:flex;flex-direction:column;gap:5px"><input id="eqr_${id}" value="${label}" maxlength="24" onkeydown="if(event.key==='Enter')saveQR('${id}');if(event.key==='Escape'){APP.editQRId=null;render()}" style="width:100%;padding:5px 7px;border-radius:6px;border:1.5px solid #1a1a1a;font-size:11px;text-align:center;outline:none;box-sizing:border-box"><div style="display:flex;gap:4px"><button onclick="saveQR('${id}')" style="flex:1;background:#1a1a1a;color:#fff;border:none;border-radius:5px;padding:5px;font-size:10px;font-weight:600">✓</button><button onclick="APP.editQRId=null;render()" style="flex:1;background:#f0f0f0;border:none;border-radius:5px;padding:5px;font-size:10px">✕</button></div></div>`:`<div style="font-size:10px;font-weight:500;color:#444;margin-bottom:2px">${label}</div><div style="display:flex;gap:5px"><button onclick="openEntryForm('${id}')" style="background:#EAF3DE;border:none;color:#27500A;border-radius:5px;padding:4px 8px;font-size:9px;font-weight:600">📷 Scan</button><button onclick="APP.editQRId='${id}';render()" style="background:#f5f4f0;border:none;border-radius:5px;padding:4px 8px;font-size:9px;font-weight:500">✏️ Rename</button></div>`}</div>`}).join('')}
+  </div>`}
+
+function buildPrint(){return`<div style="min-height:100vh;background:#F8F7F4">
+  <div class="no-print safe-top" style="background:#fff;border-bottom:1px solid #e8e4dc;padding:11px 15px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:10">
+    <div style="display:flex;align-items:center;gap:10px"><button onclick="APP.screen='main';render()" style="background:none;border:none;font-size:22px;color:#888">‹</button><div><div style="font-weight:700;font-size:15px">Printable QR Labels</div><div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.04em">20 unique · reprogrammable</div></div></div>
+    <div style="display:flex;gap:7px"><button onclick="if(confirm('Reset all labels?')){Object.assign(APP.qrLabels,DEFAULT_QR_LABELS);saveLS('fresh_qr_labels',APP.qrLabels);render()}" style="background:#f5f4f0;border:1px solid #e0e0e0;border-radius:7px;padding:6px 13px;font-size:12px;font-weight:500">↺ Reset</button><button onclick="window.print()" style="background:#1a1a1a;color:#fff;border:none;border-radius:7px;padding:6px 15px;font-size:13px;font-weight:600">🖨️ Print</button></div>
+  </div>
+  <div class="no-print" style="background:#EAF3DE;border-bottom:1px solid #C0DD97;padding:8px 15px;font-size:11px;color:#3B6D11">✅ Each QR encodes <code>FRESH:FR-XXX:Label</code> — scannable by iPhone camera in Safari.</div>
+  <div id="print-grid" style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px">
+    ${QR_IDS.map(id=>{const label=APP.qrLabels[id],qrData='FRESH:'+id+':'+label;return`<div class="print-card" style="background:#fff;border:1.5px dashed #d0cdc6;border-radius:9px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center"><div style="background:#fff;padding:6px;border-radius:6px;border:1px solid #ebebeb">${qrSVG(qrData,90)}</div><div style="background:#f5f4f0;border-radius:5px;padding:2px 9px;font-family:monospace;font-size:11px;font-weight:700">${id}</div><div style="font-size:10px;font-weight:500;color:#333;padding:3px 7px;border-radius:5px;border:1px dashed #d0cdc6;width:100%;text-align:center">${label}</div><div style="display:flex;gap:3px;justify-content:center">${[['#E24B4A','Highly Perishable'],['#BA7517','Mid Perishable'],['#3B6D11','Perishable']].map(([c,t])=>`<div title="${t}" style="width:8px;height:8px;border-radius:50%;background:${c}"></div>`).join('')}</div><div style="font-size:7px;color:#ccc;font-family:monospace;word-break:break-all;line-height:1.4">${qrData}</div><div style="font-size:8px;color:#ccc">fresh.app · 🔄 reprogrammable</div></div>`}).join('')}
+  </div>
+</div>`}
+
+function buildSettings(){return`<h2 style="margin:0 0 16px;font-size:20px;font-weight:700">Settings</h2>
+  <div style="margin-bottom:20px"><div style="font-weight:600;font-size:13px;margin-bottom:9px">📱 Deployment</div><div style="background:#fff;border:1px solid #e8e4dc;border-radius:11px;overflow:hidden">${[['🍎','iOS','Capacitor.js → App Store. Bundle: com.fresh.app'],['🤖','Android','Capacitor.js → Google Play. Package: com.fresh.app'],['🌐','PWA','Vercel/Netlify + manifest.json = Add to Home Screen'],['☁️','Backend','Supabase or Firebase for real-time DB + push alerts']].map(([ico,t,d],i,a)=>`<div style="padding:11px 13px;${i<a.length-1?'border-bottom:1px solid #f0ede6':''}display:flex;gap:10px"><span style="font-size:17px;flex-shrink:0">${ico}</span><div><div style="font-weight:600;font-size:13px">${t}</div><div style="font-size:11px;color:#888;margin-top:1px">${d}</div></div></div>`).join('')}</div></div>
+  <div><div style="font-weight:600;font-size:13px;margin-bottom:9px">💳 Subscription</div><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">${PLANS.map(p=>`<div onclick="APP.userPlan='${p.id}';saveLS('fresh_plan','${p.id}');notify('Plan updated');render()" style="background:${APP.userPlan===p.id?p.bg:'#fff'};border:${APP.userPlan===p.id?'2px solid '+p.color:'1.5px solid #e8e4dc'};border-radius:10px;padding:11px 12px;cursor:pointer"><div style="font-weight:700;font-size:16px;color:${p.color}">${p.price}</div><div style="font-weight:600;font-size:12px;margin:2px 0 1px">${p.label}</div><div style="font-size:10px;color:#888">${p.desc}</div>${APP.userPlan===p.id?`<div style="margin-top:5px;font-size:9px;font-weight:700;color:${p.color}">✓ ACTIVE</div>`:''}</div>`).join('')}</div><div style="background:#f5f4f0;border-radius:8px;padding:10px 12px;font-size:11px;color:#666"><strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br><strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE</div></div>`}
+
+function buildAuth(){const plan=PLANS.find(p=>p.id===APP.userPlan)||PLANS[0];return`<div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px"><div style="background:#fff;border-radius:16px;padding:22px;width:100%;max-width:360px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div style="font-weight:700;font-size:17px">👤 Account</div><button onclick="APP.screen='main';APP.promoError='';APP.promoSuccess='';render()" style="background:none;border:none;font-size:22px;color:#aaa">×</button></div><div style="background:${plan.bg};border-radius:9px;padding:11px 13px;margin-bottom:14px"><div style="font-size:11px;color:#aaa">Current Plan</div><div style="font-weight:700;font-size:18px;color:${plan.color}">${plan.label}</div><div style="font-size:11px;color:#aaa">${plan.desc}</div></div><div style="margin-bottom:13px"><div style="font-weight:600;font-size:13px;margin-bottom:7px">Redeem Code</div><div style="display:flex;gap:7px"><input id="promo_inp" placeholder="Enter code…" value="${APP.promoCode}" oninput="APP.promoCode=this.value.toUpperCase();this.value=APP.promoCode" onkeydown="if(event.key==='Enter')applyPromo()" style="flex:1;padding:9px 11px;border-radius:8px;border:1.5px solid #ddd;font-size:13px;outline:none"><button onclick="applyPromo()" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:9px 13px;font-weight:600;font-size:12px">Apply</button></div>${APP.promoError?`<div style="color:#A32D2D;font-size:12px;margin-top:5px">${APP.promoError}</div>`:''}${APP.promoSuccess?`<div style="color:#27500A;font-size:12px;margin-top:5px">${APP.promoSuccess}</div>`:''}</div><div style="font-size:11px;color:#aaa;background:#f5f4f0;border-radius:7px;padding:9px 11px"><strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br><strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE</div></div></div>`}
+
+render();
+</script>
+</body>
+</html>
