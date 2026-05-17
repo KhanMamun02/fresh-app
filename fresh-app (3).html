@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fresh">
+<meta name="theme-color" content="#111">
+<title>Fresh — Food Safety Logos</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:'Inter',system-ui,sans-serif;background:#F0EDE7;color:#111;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none}
+button,input,textarea{font-family:inherit}
+button{cursor:pointer;border:none;background:none}
+input,textarea{-webkit-appearance:none;appearance:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:#C8C0B4;border-radius:99px}
+
+:root{
+  --bg:#F0EDE7;--s:#fff;--bd:#DDD8CF;
+  --ink:#111;--ink2:#555;--ink3:#999;
+  --r:10px;--r2:6px;
+  --green:#145214;--gbg:#E8F5E8;--gbd:#7CC07C;
+  --amber:#7A4800;--abg:#FFF3D0;--abd:#E8B040;
+  --red:#8B1111;--rbg:#FDE8E8;--rbd:#D07070;
+  --shadow:0 1px 8px rgba(0,0,0,.08);
+  --shadow-lg:0 6px 28px rgba(0,0,0,.14);
+}
+
+/* Shell */
+#shell{display:flex;flex-direction:column;height:100dvh;max-width:580px;margin:0 auto}
+
+/* Header */
+#hdr{background:#111;color:#fff;flex-shrink:0;
+  padding:0 16px;padding-top:env(safe-area-inset-top,0px)}
+#hdr-row{height:52px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:9px}
+.logo-sq{width:32px;height:32px;background:rgba(255,255,255,.1);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;font-size:16px}
+.brand-name{font-size:17px;font-weight:800;letter-spacing:-.03em}
+.brand-tag{font-size:7.5px;opacity:.4;letter-spacing:.12em;text-transform:uppercase;margin-top:-2px}
+.hdr-r{display:flex;align-items:center;gap:8px}
+#apill{background:#C62828;color:#fff;font-size:10px;font-weight:700;
+  padding:2px 9px;border-radius:99px;display:none}
+#apill.on{display:block}
+.hdr-btn{background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:6px;
+  padding:5px 11px;font-size:12px;font-weight:500;cursor:pointer}
+
+/* Tabs */
+#tabs{background:#fff;border-bottom:1.5px solid var(--bd);display:flex;
+  overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tb{border:none;background:none;padding:12px 14px;font-size:11.5px;font-weight:500;
+  color:var(--ink3);border-bottom:2.5px solid transparent;white-space:nowrap;
+  cursor:pointer;display:flex;align-items:center;gap:5px;transition:.15s;flex-shrink:0}
+.tb.on{color:#111;border-bottom-color:#111;font-weight:700}
+
+/* Page */
+#page{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:16px;padding-bottom:36px}
+.fade{animation:fu .2s ease both}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* Cards */
+.card{background:#fff;border:1.5px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.card-hd{padding:11px 14px;border-bottom:1px solid var(--bd);
+  display:flex;justify-content:space-between;align-items:center;
+  font-weight:600;font-size:13px}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;
+  cursor:pointer;font-family:inherit;font-weight:700;
+  border-radius:var(--r2);border:none;transition:.15s}
+.btn:active{transform:scale(.97)}
+.btn-blk{background:#111;color:#fff;font-size:14px;padding:13px;width:100%}
+.btn-blk:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-out{background:#fff;color:#111;border:1.5px solid var(--bd);font-size:14px;padding:12px;width:100%}
+.btn-out:hover{background:var(--bg)}
+.btn-ghost{background:none;border:none;color:var(--ink2);font-size:12px;
+  padding:6px 10px;border-radius:6px;cursor:pointer}
+
+/* Form */
+.field{width:100%;padding:11px 13px;border-radius:var(--r2);border:1.5px solid var(--bd);
+  font-size:14px;background:#fff;color:#111;outline:none;transition:.15s}
+.field:focus{border-color:#111}
+textarea.field{resize:none}
+.lbl{font-size:11px;font-weight:600;color:var(--ink2);margin-bottom:6px;
+  display:block;text-transform:uppercase;letter-spacing:.05em}
+
+/* Freshness */
+.fbar{background:#E5E0D5;border-radius:99px;overflow:hidden;width:100%}
+.fbar-fill{height:100%;border-radius:99px;transition:width .4s}
+
+/* Badges */
+.badge{font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:99px}
+.b-fr{background:var(--gbg);color:var(--green)}
+.b-so{background:var(--abg);color:var(--amber)}
+.b-cr,.b-ex{background:var(--rbg);color:var(--red)}
+
+/* Summary */
+.sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:16px}
+.sum-card{border-radius:var(--r);padding:13px 14px}
+.sum-lbl{font-size:10px;font-weight:600;opacity:.6;margin-bottom:3px;
+  text-transform:uppercase;letter-spacing:.05em}
+.sum-val{font-size:30px;font-weight:800;line-height:1.05}
+
+/* Priority rows */
+.prow{padding:10px 13px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--bd)}
+.prow:last-child{border-bottom:none}
+
+/* Inventory rows */
+.irow{padding:12px 13px;border-bottom:1px solid var(--bd);
+  border-left:4px solid transparent}
+.irow:last-child{border-bottom:none}
+
+/* Drop zone */
+.dz{border:2px dashed var(--bd);border-radius:var(--r);padding:28px 20px;
+  text-align:center;cursor:pointer;transition:.2s;background:#fff;position:relative}
+.dz:hover,.dz.drag{border-color:#111;background:#EAE7E0}
+.dz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+
+/* Match box */
+.match-box{border-radius:var(--r);padding:16px;margin-top:13px;
+  animation:popIn .25s ease}
+@keyframes popIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.match-ok{background:var(--gbg);border:1.5px solid var(--gbd)}
+.match-fail{background:var(--rbg);border:1.5px solid var(--rbd)}
+
+/* Overlay / Sheet */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;
+  display:flex;align-items:flex-end;justify-content:center}
+.ov.mid{align-items:center;padding:20px}
+.sheet{background:#fff;border-radius:20px 20px 0 0;max-height:92vh;
+  overflow-y:auto;width:100%;max-width:580px;animation:slideUp .24s ease}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.sheet.modal{border-radius:15px;max-height:88vh;max-width:490px;animation:popIn .2s ease}
+.sh-hd{padding:15px 18px;border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:#fff;z-index:5;border-radius:20px 20px 0 0}
+.sh-title{font-size:16px;font-weight:700}
+.sh-x{font-size:22px;color:var(--ink3);background:none;border:none;
+  cursor:pointer;line-height:1;padding:2px 6px;border-radius:5px}
+.sh-x:hover{background:#f0ede7}
+.sh-body{padding:18px}
+.sh-foot{padding:12px 18px;border-top:1px solid var(--bd);background:#fff;
+  position:sticky;bottom:0;display:flex;flex-direction:column;gap:8px;
+  padding-bottom:max(12px,env(safe-area-inset-bottom))}
+
+/* Entry steps */
+.step-bar{display:flex;gap:4px;margin-bottom:14px}
+.step-bar div{flex:1;height:3px;border-radius:99px;background:var(--bd);transition:.3s}
+.step-bar div.on{background:#111}
+.cat-opt{display:flex;align-items:center;gap:10px;padding:11px 13px;
+  border-radius:9px;border:1.5px solid var(--bd);background:#fff;
+  cursor:pointer;margin-bottom:8px;transition:.15s}
+.cat-opt.sel{border-color:var(--cc,#111);background:var(--cb,#eee)}
+.cat-radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--cc,var(--bd));
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s}
+.cat-opt.sel .cat-radio{background:var(--cc);border-color:var(--cc)}
+.cat-opt.sel .cat-radio::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff}
+.day-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.day-btn{padding:11px 0;border:1.5px solid var(--bd);background:#fff;
+  color:var(--ink2);border-radius:9px;font-size:16px;font-weight:700;cursor:pointer;transition:.15s}
+.day-btn.sel{border-color:#111;background:#111;color:#fff}
+
+/* Toast */
+#toast{position:fixed;top:max(env(safe-area-inset-top,0px),14px);left:50%;
+  transform:translateX(-50%);padding:10px 20px;border-radius:99px;
+  font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);z-index:9999;
+  pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:92vw}
+#toast.on{opacity:1}
+
+/* Pills */
+.pills{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:1px}
+.pills::-webkit-scrollbar{display:none}
+.pill{border:1.5px solid var(--bd);background:#fff;color:var(--ink2);
+  padding:4px 12px;border-radius:99px;font-size:11px;font-weight:500;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;transition:.15s}
+.pill.on{background:#111;color:#fff;border-color:#111}
+
+/* Spinner */
+.spin{width:20px;height:20px;border:2.5px solid rgba(255,255,255,.25);
+  border-top-color:#fff;border-radius:50%;animation:ro .7s linear infinite}
+@keyframes ro{to{transform:rotate(360deg)}}
+.spin.dk{border-color:rgba(0,0,0,.1);border-top-color:#111}
+
+/* Section label */
+.sec{font-size:10.5px;font-weight:700;color:var(--ink2);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+
+/* Logo card in logos tab */
+.logo-card{background:#fff;border:1.5px solid var(--bd);border-radius:var(--r);
+  padding:14px;display:flex;flex-direction:column;gap:10px}
+.logo-canvas-wrap{background:#fff;border:2px solid #111;border-radius:8px;
+  overflow:hidden;display:flex;align-items:center;justify-content:center;padding:4px}
+.logo-canvas{display:block;image-rendering:pixelated}
+
+/* Print styles */
+@media print{
+  /* Hide everything except the dedicated print page */
+  body > *:not(#print-page){display:none!important}
+  #print-page{display:block!important}
+  body{background:#fff;margin:0;padding:0}
+  #pgrid{
+    display:grid!important;
+    grid-template-columns:repeat(4,1fr)!important;
+    gap:5mm!important;
+    padding:8mm!important;
+  }
+  .pcard{page-break-inside:avoid;border:1.5px solid #111!important}
+  @page{size:A4 portrait;margin:6mm}
+}
+/* Print page hidden by default, shown only during print or preview */
+#print-page{display:none;background:#fff}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="hdr">
+    <div id="hdr-row">
+      <div class="brand">
+        <div class="logo-sq">🥗</div>
+        <div>
+          <div class="brand-name">Fresh</div>
+          <div class="brand-tag">Food Safety · Logo Edition</div>
+        </div>
+      </div>
+      <div class="hdr-r">
+        <div id="apill">⚠ <span id="acnt">0</span></div>
+        <button class="hdr-btn" onclick="openAuth()">👤</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tabs">
+    <button class="tb on" id="tb-dash"   onclick="gTab('dash')">📊 Dashboard</button>
+    <button class="tb"    id="tb-scan"   onclick="gTab('scan')">📷 Scan</button>
+    <button class="tb"    id="tb-inv"    onclick="gTab('inv')">📋 Inventory</button>
+    <button class="tb"    id="tb-logos"  onclick="gTab('logos')">🎨 Logos</button>
+    <button class="tb"    id="tb-set"    onclick="gTab('set')">⚙️ Settings</button>
+  </div>
+
+  <div id="page"></div>
+</div>
+
+<canvas id="work-cv" style="display:none"></canvas>
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LOGO ENGINE
+   Generates 20 unique, high-contrast, easily-photographable logos.
+   Each logo is rendered as a crisp SVG-like canvas drawing.
+
+   Design system:
+   ┌────────────────────────────────────────────────────────────────┐
+   │  OUTER BORDER SHAPE  (4 rotating: circle/square/hex/diamond)  │
+   │  ┌────────────────────────────────────────────────────────┐   │
+   │  │  LARGE STATION NUMBER  (01–20)  →  dominant element   │   │
+   │  │  UNIQUE ICON  (top-right corner)  →  visual anchor    │   │
+   │  │  STATION NAME  (bottom)  →  text label                │   │
+   │  └────────────────────────────────────────────────────────┘   │
+   └────────────────────────────────────────────────────────────────┘
+
+   Identification strategy:
+   - Large bold number (01–20) is the primary unique element
+   - Visual icon provides fast human recognition
+   - Border shape groups stations visually
+   - Photo matching uses pixel correlation of rendered reference images
+   ═══════════════════════════════════════════════════════════════════ */
+const LogoEngine = (() => {
+
+  // Station definitions: id, number, name, icon path (SVG-like canvas commands), border style
+  const STATIONS = [
+    { id:'F01', num:'01', name:'KITCHEN A',   icon:'knife',    border:'circle',  inv:false },
+    { id:'F02', num:'02', name:'KITCHEN B',   icon:'flame',    border:'square',  inv:true  },
+    { id:'F03', num:'03', name:'PREP 1',      icon:'board',    border:'hex',     inv:false },
+    { id:'F04', num:'04', name:'PREP 2',      icon:'ladle',    border:'diamond', inv:true  },
+    { id:'F05', num:'05', name:'FRIDGE 1',    icon:'snowflake',border:'circle',  inv:true  },
+    { id:'F06', num:'06', name:'FRIDGE 2',    icon:'drop',     border:'square',  inv:false },
+    { id:'F07', num:'07', name:'FREEZER',     icon:'crystal',  border:'hex',     inv:true  },
+    { id:'F08', num:'08', name:'DRY STORE',   icon:'box',      border:'diamond', inv:false },
+    { id:'F09', num:'09', name:'HOT HOLD',    icon:'heat',     border:'circle',  inv:false },
+    { id:'F10', num:'10', name:'COLD HOLD',   icon:'ice',      border:'square',  inv:true  },
+    { id:'F11', num:'11', name:'PANTRY',      icon:'jar',      border:'hex',     inv:false },
+    { id:'F12', num:'12', name:'BAKERY',      icon:'wheat',    border:'diamond', inv:true  },
+    { id:'F13', num:'13', name:'GRILL',       icon:'fire',     border:'circle',  inv:true  },
+    { id:'F14', num:'14', name:'SALAD BAR',   icon:'leaf',     border:'square',  inv:false },
+    { id:'F15', num:'15', name:'RECEIVING',   icon:'truck',    border:'hex',     inv:true  },
+    { id:'F16', num:'16', name:'SERVICE',     icon:'star',     border:'diamond', inv:false },
+    { id:'F17', num:'17', name:'MEAT',        icon:'cross',    border:'circle',  inv:false },
+    { id:'F18', num:'18', name:'SEAFOOD',     icon:'wave',     border:'square',  inv:true  },
+    { id:'F19', num:'19', name:'VEG PREP',    icon:'sprout',   border:'hex',     inv:false },
+    { id:'F20', num:'20', name:'DISPATCH',    icon:'arrow',    border:'diamond', inv:true  },
+  ];
+
+  // Draw a single icon shape on canvas context
+  function drawIcon(ctx, iconName, cx, cy, size, dark) {
+    const c = dark ? '#fff' : '#111';
+    ctx.fillStyle = c;
+    ctx.strokeStyle = c;
+    ctx.lineWidth = Math.max(2, size * 0.15);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const s = size * 0.42;
+
+    ctx.beginPath();
+    switch(iconName) {
+      case 'knife':
+        // Simple blade shape
+        ctx.moveTo(cx-s*.1, cy-s);
+        ctx.lineTo(cx+s*.4, cy-s*.2);
+        ctx.lineTo(cx+s*.1, cy+s);
+        ctx.lineTo(cx-s*.4, cy+s*.2);
+        ctx.closePath(); ctx.fill(); break;
+
+      case 'flame':
+        ctx.moveTo(cx, cy+s);
+        ctx.bezierCurveTo(cx-s, cy, cx-s*.5, cy-s*.5, cx, cy-s*.8);
+        ctx.bezierCurveTo(cx+s*.2, cy-s*.4, cx+s*.1, cy-s*.1, cx+s*.3, cy-s*.6);
+        ctx.bezierCurveTo(cx+s*.6, cy-.2, cx+s, cy, cx, cy+s);
+        ctx.fill(); break;
+
+      case 'board':
+        // Cutting board rectangle
+        ctx.roundRect(cx-s*.7, cy-s*.5, s*1.4, s, 3);
+        ctx.fill();
+        ctx.fillStyle = dark ? '#111' : '#fff';
+        ctx.fillRect(cx-s*.4, cy-s*.25, s*.8, s*.08);
+        ctx.fillRect(cx-s*.4, cy+s*.08, s*.8, s*.08); break;
+
+      case 'ladle':
+        // Spoon/ladle
+        ctx.arc(cx, cy-s*.4, s*.45, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx+s*.3, cy-s*.1);
+        ctx.lineTo(cx+s*.1, cy+s*.8);
+        ctx.lineWidth = size * 0.18;
+        ctx.stroke(); break;
+
+      case 'snowflake':
+        // 6-pointed snowflake
+        for(let i=0;i<6;i++){
+          ctx.save();ctx.translate(cx,cy);ctx.rotate(i*Math.PI/3);
+          ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-s);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(0,-s*.5);ctx.lineTo(-s*.3,-s*.65);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(0,-s*.5);ctx.lineTo(s*.3,-s*.65);ctx.stroke();
+          ctx.restore();
+        }
+        ctx.beginPath();ctx.arc(cx,cy,s*.22,0,Math.PI*2);ctx.fill(); break;
+
+      case 'drop':
+        ctx.moveTo(cx, cy-s);
+        ctx.bezierCurveTo(cx+s*.6, cy-s*.2, cx+s*.6, cy+s*.4, cx, cy+s);
+        ctx.bezierCurveTo(cx-s*.6, cy+s*.4, cx-s*.6, cy-s*.2, cx, cy-s);
+        ctx.fill(); break;
+
+      case 'crystal':
+        // Diamond/gem
+        ctx.moveTo(cx, cy-s);ctx.lineTo(cx+s*.7, cy);
+        ctx.lineTo(cx, cy+s*.9);ctx.lineTo(cx-s*.7, cy);ctx.closePath();ctx.fill();
+        ctx.fillStyle = dark?'#111':'#fff';
+        ctx.beginPath();ctx.moveTo(cx,cy-s*.6);ctx.lineTo(cx+s*.4,cy);ctx.lineTo(cx-s*.4,cy);ctx.fill();
+        break;
+
+      case 'box':
+        ctx.strokeRect(cx-s*.7, cy-s*.5, s*1.4, s*1.0);
+        ctx.moveTo(cx-s*.7, cy-s*.1);ctx.lineTo(cx+s*.7,cy-s*.1);ctx.stroke();
+        ctx.moveTo(cx, cy-s*.5);ctx.lineTo(cx, cy-s*.1);ctx.stroke(); break;
+
+      case 'heat':
+        // 3 rising waves = heat lines
+        for(let i=-1;i<=1;i++){
+          ctx.beginPath();
+          ctx.moveTo(cx+i*s*.35, cy+s*.5);
+          ctx.bezierCurveTo(cx+i*s*.35-s*.15,cy+s*.1,cx+i*s*.35+s*.15,cy-s*.3,cx+i*s*.35,cy-s*.7);
+          ctx.stroke();
+        } break;
+
+      case 'ice':
+        // Snowflake variant with square center
+        ctx.fillRect(cx-s*.25, cy-s*.25, s*.5, s*.5);
+        for(let i=0;i<4;i++){
+          ctx.save();ctx.translate(cx,cy);ctx.rotate(i*Math.PI/2);
+          ctx.beginPath();ctx.moveTo(0,-s*.3);ctx.lineTo(0,-s*.9);ctx.stroke();
+          ctx.restore();
+        } break;
+
+      case 'jar':
+        // Mason jar outline
+        ctx.beginPath();
+        ctx.moveTo(cx-s*.5,cy-s*.7);ctx.lineTo(cx-s*.6,cy+s*.9);
+        ctx.lineTo(cx+s*.6,cy+s*.9);ctx.lineTo(cx+s*.5,cy-s*.7);ctx.closePath();ctx.fill();
+        ctx.beginPath();
+        ctx.fillStyle=dark?'#111':'#fff';
+        ctx.fillRect(cx-s*.6,cy-s*.95,s*1.2,s*.3);
+        ctx.beginPath();ctx.fillRect(cx-s*.35,cy-s*.2,s*.7,s*.08);
+        break;
+
+      case 'wheat':
+        // Wheat stalk
+        ctx.moveTo(cx,cy+s);ctx.lineTo(cx,cy-s*.2);ctx.stroke();
+        for(let i=0;i<3;i++){
+          const yy=cy-s*.2+i*s*.4;
+          ctx.beginPath();ctx.moveTo(cx,yy);ctx.lineTo(cx-s*.55,yy-s*.35);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(cx,yy);ctx.lineTo(cx+s*.55,yy-s*.35);ctx.stroke();
+        }
+        ctx.beginPath();ctx.arc(cx,cy-s*.9,s*.25,0,Math.PI*2);ctx.fill(); break;
+
+      case 'fire':
+        // Multiple flames
+        ctx.moveTo(cx,cy+s);
+        ctx.bezierCurveTo(cx-s*.8,cy+s*.2,cx-s*.5,cy-s*.3,cx-s*.1,cy-s*.5);
+        ctx.bezierCurveTo(cx-s*.3,cy-s*.1,cx-s*.1,cy+s*.2,cx,cy);
+        ctx.bezierCurveTo(cx+s*.1,cy-s*.4,cx+s*.4,cy-s*.7,cx+s*.2,cy-s);
+        ctx.bezierCurveTo(cx+s*.6,cy-s*.5,cx+s*.9,cy,cx+s*.7,cy+s*.4);
+        ctx.bezierCurveTo(cx+s*.8,cy+s,cx,cy+s*1.1,cx,cy+s);
+        ctx.fill(); break;
+
+      case 'leaf':
+        ctx.moveTo(cx,cy+s*.8);
+        ctx.bezierCurveTo(cx-s*.7,cy+s*.2,cx-s*.8,cy-s*.5,cx,cy-s*.9);
+        ctx.bezierCurveTo(cx+s*.8,cy-s*.5,cx+s*.7,cy+s*.2,cx,cy+s*.8);
+        ctx.fill();
+        ctx.strokeStyle=dark?'#111':'#fff';
+        ctx.beginPath();ctx.moveTo(cx,cy-s*.9);ctx.lineTo(cx,cy+s*.8);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+s*.5,cy-s*.3);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(cx,cy+s*.2);ctx.lineTo(cx-s*.45,cy-.1);ctx.stroke();
+        break;
+
+      case 'truck':
+        // Simple truck side view
+        ctx.fillRect(cx-s*.8,cy-s*.3,s*1.3,s*.7);
+        ctx.fillStyle=dark?'#111':'#fff';
+        ctx.fillRect(cx-s*.5,cy-s*.55,s*.5,s*.25);
+        ctx.fillStyle=c;
+        ctx.beginPath();ctx.arc(cx-s*.55,cy+s*.45,s*.22,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(cx+s*.35,cy+s*.45,s*.22,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle=dark?'#111':'#fff';
+        ctx.beginPath();ctx.arc(cx-s*.55,cy+s*.45,s*.1,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(cx+s*.35,cy+s*.45,s*.1,0,Math.PI*2);ctx.fill();
+        break;
+
+      case 'star':
+        // 5-pointed star
+        for(let i=0;i<5;i++){
+          const a1=i*Math.PI*2/5-Math.PI/2;
+          const a2=(i+.5)*Math.PI*2/5-Math.PI/2;
+          const x1=cx+Math.cos(a1)*s, y1=cy+Math.sin(a1)*s;
+          const x2=cx+Math.cos(a2)*s*.4, y2=cy+Math.sin(a2)*s*.4;
+          if(i===0)ctx.moveTo(x1,y1); else ctx.lineTo(x1,y1);
+          ctx.lineTo(x2,y2);
+        }
+        ctx.closePath();ctx.fill(); break;
+
+      case 'cross':
+        ctx.fillRect(cx-s*.22,cy-s,s*.44,s*2);
+        ctx.fillRect(cx-s,cy-s*.22,s*2,s*.44); break;
+
+      case 'wave':
+        // Wave lines = seafood
+        for(let i=-1;i<=1;i++){
+          ctx.beginPath();
+          const yy=cy+i*s*.38;
+          ctx.moveTo(cx-s*.8,yy);
+          ctx.bezierCurveTo(cx-s*.4,yy-s*.3,cx+s*.4,yy+s*.3,cx+s*.8,yy);
+          ctx.stroke();
+        } break;
+
+      case 'sprout':
+        // Plant sprout
+        ctx.moveTo(cx,cy+s*.9);ctx.lineTo(cx,cy-s*.4);ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx,cy-s*.1);
+        ctx.bezierCurveTo(cx,cy-s*.7,cx+s*.7,cy-s*.8,cx+s*.6,cy-s*.1);
+        ctx.bezierCurveTo(cx+s*.4,cy+s*.1,cx+s*.1,cy+s*.1,cx,cy-s*.1);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx,cy+s*.2);
+        ctx.bezierCurveTo(cx,cy-s*.4,cx-s*.7,cy-s*.5,cx-s*.55,cy+s*.1);
+        ctx.bezierCurveTo(cx-s*.3,cy+s*.2,cx-s*.1,cy+s*.3,cx,cy+s*.2);
+        ctx.fill(); break;
+
+      case 'arrow':
+        // Bold right arrow
+        ctx.moveTo(cx-s*.8,cy-s*.25);ctx.lineTo(cx+s*.1,cy-s*.25);
+        ctx.lineTo(cx+s*.1,cy-s*.6);ctx.lineTo(cx+s*.8,cy);
+        ctx.lineTo(cx+s*.1,cy+s*.6);ctx.lineTo(cx+s*.1,cy+s*.25);
+        ctx.lineTo(cx-s*.8,cy+s*.25);ctx.closePath();ctx.fill(); break;
+
+      default:
+        ctx.arc(cx,cy,s*.6,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // Draw the border shape (clip region)
+  function drawBorderShape(ctx, border, cx, cy, r) {
+    ctx.beginPath();
+    switch(border) {
+      case 'circle':
+        ctx.arc(cx, cy, r, 0, Math.PI*2); break;
+      case 'square':
+        ctx.roundRect(cx-r, cy-r, r*2, r*2, r*0.12); break;
+      case 'hex':
+        for(let i=0;i<6;i++){
+          const a=i*Math.PI/3-Math.PI/6;
+          const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a);
+          i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+        }
+        ctx.closePath(); break;
+      case 'diamond':
+        ctx.moveTo(cx, cy-r*1.05);
+        ctx.lineTo(cx+r, cy);
+        ctx.lineTo(cx, cy+r*1.05);
+        ctx.lineTo(cx-r, cy);
+        ctx.closePath(); break;
+    }
+  }
+
+  // Render a single station logo to a canvas
+  // Returns the canvas element
+  function render(station, canvas, size = 200) {
+    const dpr = 1; // caller handles dpr
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const inv = station.inv; // inverted = dark background
+    const fg = inv ? '#fff' : '#111';
+    const bg = inv ? '#111' : '#fff';
+    const cx = size / 2, cy = size / 2;
+    const r = size * 0.44;
+
+    // Background
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+
+    // Border shape fill
+    drawBorderShape(ctx, station.border, cx, cy, r);
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    // Border stroke (thick)
+    drawBorderShape(ctx, station.border, cx, cy, r);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = size * 0.045;
+    ctx.stroke();
+
+    // Large station number — primary identifier, centered
+    const numSize = size * (station.num.length > 2 ? 0.34 : 0.4);
+    ctx.fillStyle = fg;
+    ctx.font = `900 ${numSize}px 'Inter', 'Arial Black', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Slight upward offset to leave room for name at bottom
+    ctx.fillText(station.num, cx, cy * 0.88);
+
+    // Station name at bottom inside shape
+    const nameSize = size * 0.085;
+    ctx.font = `700 ${nameSize}px 'Inter', Arial, sans-serif`;
+    ctx.fillStyle = fg;
+    ctx.fillText(station.name, cx, cy * 1.6);
+
+    // Icon in top-right corner (inside shape)
+    const iconSize = size * 0.2;
+    const iconX = cx + r * 0.5;
+    const iconY = cy - r * 0.52;
+    drawIcon(ctx, station.icon, iconX, iconY, iconSize, inv);
+
+    // Station ID tag bottom-right (small, monospace)
+    ctx.font = `600 ${size * 0.065}px 'JetBrains Mono', 'Courier New', monospace`;
+    ctx.fillStyle = fg;
+    ctx.globalAlpha = 0.55;
+    ctx.fillText(station.id, cx, cy * 1.82);
+    ctx.globalAlpha = 1;
+
+    return canvas;
+  }
+
+  // Render to an <img> src (data URL)
+  function renderToImg(station, size = 200) {
+    const cv = document.createElement('canvas');
+    render(station, cv, size);
+    return cv.toDataURL('image/png');
+  }
+
+  // Get pixel signature for matching (grayscale, downsampled to 32x32 = 1024 values)
+  function getSignature(station, size = 96) {
+    const cv = document.createElement('canvas');
+    render(station, cv, size);
+    const ctx = cv.getContext('2d');
+    const data = ctx.getImageData(0, 0, size, size).data;
+    const sig = new Float32Array(size * size);
+    for (let i = 0; i < size * size; i++) {
+      sig[i] = (data[i * 4] * 77 + data[i * 4 + 1] * 150 + data[i * 4 + 2] * 29) / (255 * 256);
+    }
+    return sig;
+  }
+
+  // Pearson correlation coefficient between two signatures
+  function correlate(a, b) {
+    const n = Math.min(a.length, b.length);
+    let sA = 0, sB = 0;
+    for (let i = 0; i < n; i++) { sA += a[i]; sB += b[i]; }
+    const mA = sA / n, mB = sB / n;
+    let cov = 0, vA = 0, vB = 0;
+    for (let i = 0; i < n; i++) {
+      const da = a[i] - mA, db = b[i] - mB;
+      cov += da * db; vA += da * da; vB += db * db;
+    }
+    const denom = Math.sqrt(vA * vB);
+    return denom < 1e-10 ? 0 : cov / denom;
+  }
+
+  return { STATIONS, render, renderToImg, getSignature, correlate };
+})();
+
+// Pre-compute all 20 reference signatures once at startup
+let REF_SIGS = null;
+function getRefSigs() {
+  if (!REF_SIGS) {
+    REF_SIGS = LogoEngine.STATIONS.map(s => ({
+      station: s,
+      sig: LogoEngine.getSignature(s, 64)
+    }));
+  }
+  return REF_SIGS;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHOTO MATCHER
+   Finds the logo in an uploaded photo and matches it against all 20
+   reference signatures using Pearson correlation.
+   ═══════════════════════════════════════════════════════════════════════ */
+const PhotoMatcher = (() => {
+
+  // Convert a canvas region to grayscale signature (same size as reference)
+  function regionToSig(ctx, sx, sy, sw, sh, sigSize) {
+    // Render region to temp canvas at sigSize
+    const tmp = document.createElement('canvas');
+    tmp.width = sigSize; tmp.height = sigSize;
+    const tCtx = tmp.getContext('2d');
+    tCtx.drawImage(ctx.canvas, sx, sy, sw, sh, 0, 0, sigSize, sigSize);
+    const data = tCtx.getImageData(0, 0, sigSize, sigSize).data;
+    const sig = new Float32Array(sigSize * sigSize);
+    for (let i = 0; i < sigSize * sigSize; i++) {
+      sig[i] = (data[i*4]*77 + data[i*4+1]*150 + data[i*4+2]*29) / (255*256);
+    }
+    return sig;
+  }
+
+  // Try multiple crops of the uploaded photo and find best matching logo
+  async function match(file) {
+    return new Promise(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const cv = document.getElementById('work-cv');
+        // Scale image for processing
+        const maxDim = 600;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const W = Math.round(img.width * scale);
+        const H = Math.round(img.height * scale);
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0, W, H);
+        URL.revokeObjectURL(url);
+
+        const refs = getRefSigs();
+        const SIG_SIZE = 64;
+
+        // Generate candidate regions: full image + crops at multiple positions/scales
+        const candidates = [];
+
+        // Try square crops (logos are roughly square)
+        const minDim = Math.min(W, H);
+        for (const frac of [1.0, 0.85, 0.7, 0.55]) {
+          const cropSize = Math.floor(minDim * frac);
+          // Center + 4 quadrant offsets
+          const offsets = [
+            { x: Math.floor((W - cropSize) / 2), y: Math.floor((H - cropSize) / 2) }, // center
+            { x: 0, y: 0 }, // top-left
+            { x: W - cropSize, y: 0 }, // top-right
+            { x: 0, y: H - cropSize }, // bottom-left
+            { x: W - cropSize, y: H - cropSize }, // bottom-right
+          ];
+          for (const { x, y } of offsets) {
+            if (x >= 0 && y >= 0 && x + cropSize <= W && y + cropSize <= H) {
+              candidates.push({ x, y, w: cropSize, h: cropSize });
+            }
+          }
+        }
+
+        // Also try non-square regions for logos that might be photographed wider
+        candidates.push({ x: 0, y: 0, w: W, h: H }); // full
+        const mh = Math.floor(H * 0.8), my = Math.floor(H * 0.1);
+        const mw = Math.floor(W * 0.8), mx = Math.floor(W * 0.1);
+        candidates.push({ x: mx, y: my, w: mw, h: mh }); // center 80%
+
+        let bestScore = 0;
+        let bestStation = null;
+
+        for (const { x, y, w, h } of candidates) {
+          const sig = regionToSig(ctx, x, y, w, h, SIG_SIZE);
+          for (const { station, sig: refSig } of refs) {
+            const score = LogoEngine.correlate(sig, refSig);
+            if (score > bestScore) {
+              bestScore = score;
+              bestStation = station;
+            }
+          }
+        }
+
+        if (bestScore >= 0.72) {
+          resolve({ station: bestStation, score: bestScore, matched: true });
+        } else {
+          resolve({
+            station: bestStation,
+            score: bestScore,
+            matched: false,
+            reason: bestScore > 0.4
+              ? `Best match: ${bestStation?.id} at ${Math.round(bestScore * 100)}% confidence — below 72% threshold`
+              : 'No logo pattern found in this photo'
+          });
+        }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  return { match };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   APP STATE
+   ═══════════════════════════════════════════════════════════════════════ */
+const CATS = {
+  H:{ label:'Highly Perishable', sub:'Raw ingredients',  days:1, col:'#B71C1C', bg:'#FFEBEE', bd:'#EF9A9A', icon:'🥩' },
+  M:{ label:'Mid Perishable',    sub:'Curries & cooked', days:3, col:'#795500', bg:'#FFF8E1', bd:'#FFD54F', icon:'🍛' },
+  P:{ label:'Perishable',        sub:'Oil-cooked foods', days:4, col:'#145214', bg:'#E8F5E9', bd:'#81C784', icon:'🍳' },
+};
+const PLANS=[
+  {id:'free', label:'30-Day Free Trial',price:'$0',       desc:'Beta users with promo code'},
+  {id:'basic',label:'Basic',            price:'$4.99/mo', desc:'Up to 20 logos, 1 user'},
+  {id:'pro',  label:'Pro',              price:'$12.99/mo',desc:'Unlimited logos, 5 users'},
+  {id:'ent',  label:'Enterprise',       price:'$29.99/mo',desc:'Unlimited + API + analytics'},
+];
+const BETA=new Set(['BETA2024','FRESH30','FTRIAL1','EARLYBIRD']);
+const DEV =new Set(['DEV-OWNER-001','DEV-TEST-002','ADMIN-FREE']);
+const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const hAgo=h=>new Date(Date.now()-h*36e5).toISOString();
+
+const S={
+  tab:'dash',
+  entries:ls('fe',[
+    {id:1,sId:'F01',food:'Chicken Breast',    cat:'H',time:hAgo(3), days:1,notes:'Batch #A12'},
+    {id:2,sId:'F02',food:'Lamb Curry',        cat:'M',time:hAgo(26),days:3,notes:'Chef special'},
+    {id:3,sId:'F03',food:'Fried Tofu',        cat:'P',time:hAgo(72),days:4,notes:''},
+    {id:4,sId:'F05',food:'Raw Salmon',        cat:'H',time:hAgo(20),days:1,notes:'Delivery D99'},
+    {id:5,sId:'F09',food:'Beef Rendang',      cat:'M',time:hAgo(48),days:3,notes:''},
+    {id:6,sId:'F14',food:'Stir-fried Veggies',cat:'P',time:hAgo(12),days:4,notes:'Batch B'},
+  ]),
+  // Custom labels per station (user can rename)
+  labels: ls('fl', Object.fromEntries(LogoEngine.STATIONS.map(s=>[s.id, s.name]))),
+  plan:'free',
+  filter:'all',
+  // Scan state
+  file:null, matchResult:null, matchLoading:false,
+  // Entry form
+  entryStation:null, entryStep:0, entryForm:{food:'',cat:'',days:null,notes:'',time:''},
+  // Settings
+  promoCode:'', promoMsg:'', promoErr:false,
+};
+
+/* ── Helpers ─────────────────────────────────────────────────────────── */
+const expDate=(t,d)=>{const x=new Date(t);x.setDate(x.getDate()+d);return x};
+const hLeft=e=>(new Date(e)-Date.now())/36e5;
+const fpct=(t,d)=>{const tot=d*864e5,el=Date.now()-new Date(t);return Math.max(0,Math.min(100,((tot-el)/tot)*100))};
+const fCol=p=>p>60?'#145214':p>25?'#795500':'#B71C1C';
+const tLeft=h=>{if(h<=0)return'EXPIRED';if(h<1)return Math.round(h*60)+'m left';if(h<24)return Math.round(h)+'h left';return Math.floor(h/24)+'d '+Math.round(h%24)+'h left'};
+const fDt=iso=>new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const sorted=()=>[...S.entries].sort((a,b)=>expDate(a.time,a.days)-expDate(b.time,b.days));
+const sLabel=id=>(S.labels[id]||id);
+const getStation=id=>LogoEngine.STATIONS.find(s=>s.id===id);
+
+function stBadge(e){
+  const p=fpct(e.time,e.days),h=hLeft(expDate(e.time,e.days));
+  if(h<=0)return`<span class="badge b-ex">Expired</span>`;
+  if(p<25)return`<span class="badge b-cr">Critical</span>`;
+  if(p<60)return`<span class="badge b-so">Use Soon</span>`;
+  return`<span class="badge b-fr">Fresh</span>`;
+}
+function fBar(p,h=6){return`<div class="fbar" style="height:${h}px"><div class="fbar-fill" style="width:${p}%;background:${fCol(p)}"></div></div>`}
+function toast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=err?'#FFEBEE':'#111';t.style.color=err?'#B71C1C':'#fff';
+  t.classList.add('on');clearTimeout(S._tt);S._tt=setTimeout(()=>t.classList.remove('on'),3200);
+}
+function gTab(t){
+  S.tab=t;
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tb-'+t)?.classList.add('on');
+  render();
+}
+function render(){
+  const page=document.getElementById('page');
+  const exp2=S.entries.filter(e=>hLeft(expDate(e.time,e.days))<=0).length;
+  const crit=S.entries.filter(e=>{const p=fpct(e.time,e.days);return p<25&&p>0}).length;
+  const alerts=exp2+crit;
+  const pill=document.getElementById('apill'),acnt=document.getElementById('acnt');
+  if(pill&&acnt){if(alerts>0){pill.classList.add('on');acnt.textContent=alerts}else pill.classList.remove('on')}
+  const map={dash:vDash,scan:vScan,inv:vInv,logos:vLogos,set:vSet};
+  page.innerHTML=(map[S.tab]||vDash)();
+  page.className='fade';
+  if(S.tab==='logos')setTimeout(renderLogoPreviews,30);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  DASHBOARD  ═ */
+function vDash(){
+  const s=sorted();
+  const exp2=S.entries.filter(e=>hLeft(expDate(e.time,e.days))<=0).length;
+  const crit=S.entries.filter(e=>{const p=fpct(e.time,e.days);return p<25&&p>0}).length;
+  const fresh=S.entries.filter(e=>fpct(e.time,e.days)>60).length;
+  const cc={H:0,M:0,P:0};S.entries.forEach(e=>cc[e.cat]=(cc[e.cat]||0)+1);
+  return`
+<p class="sec">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
+<div class="sum-grid">
+  <div class="sum-card" style="background:#ECEAE3;border:1.5px solid var(--bd)">
+    <div class="sum-lbl">Total</div><div class="sum-val">${S.entries.length}</div></div>
+  <div class="sum-card" style="background:var(--gbg);border:1.5px solid var(--gbd)">
+    <div class="sum-lbl" style="color:var(--green)">Fresh</div>
+    <div class="sum-val" style="color:var(--green)">${fresh}</div></div>
+  <div class="sum-card" style="background:var(--abg);border:1.5px solid var(--abd)">
+    <div class="sum-lbl" style="color:var(--amber)">Use Soon</div>
+    <div class="sum-val" style="color:var(--amber)">${crit}</div></div>
+  <div class="sum-card" style="background:var(--rbg);border:1.5px solid var(--rbd)">
+    <div class="sum-lbl" style="color:var(--red)">Expired</div>
+    <div class="sum-val" style="color:var(--red)">${exp2}</div></div>
+</div>
+<p class="sec">By category</p>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:18px">
+${Object.entries(CATS).map(([k,cat])=>`
+  <div style="background:#fff;border:1.5px solid var(--bd);border-left:4px solid ${cat.col};border-radius:var(--r);padding:12px">
+    <div style="font-size:19px;margin-bottom:5px">${cat.icon}</div>
+    <div style="font-weight:700;font-size:12px">${cat.label.split(' ')[0]}</div>
+    <div style="font-size:9px;color:var(--ink3);margin-bottom:5px">${cat.sub}</div>
+    <div style="font-size:26px;font-weight:800;color:${cat.col}">${cc[k]||0}</div>
+    <div style="font-size:9px;color:var(--ink3)">max ${cat.days}d</div>
+  </div>`).join('')}
+</div>
+<p class="sec">⚡ Priority queue</p>
+<div class="card" style="margin-bottom:18px">
+${s.map(e=>{const cat=CATS[e.cat],p=fpct(e.time,e.days),h=hLeft(expDate(e.time,e.days));return`
+  <div class="prow">
+    <div style="width:28px;height:28px;border-radius:6px;background:${cat.bg};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cat.icon}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.food}</div>
+      ${fBar(p)}
+    </div>
+    <div style="text-align:right;flex-shrink:0;min-width:72px">
+      ${stBadge(e)}<div style="font-size:10px;color:var(--ink3);margin-top:2px">${tLeft(h)}</div>
+    </div>
+  </div>`}).join('')}
+</div>
+<p class="sec">📈 Freshness profile</p>
+<div class="card" style="padding:13px">
+${s.map(e=>{const cat=CATS[e.cat],p=fpct(e.time,e.days),ex=expDate(e.time,e.days);return`
+  <div style="display:grid;grid-template-columns:115px 1fr 62px;align-items:center;gap:8px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:5px;overflow:hidden">
+      <span style="font-size:11px">${cat.icon}</span>
+      <span style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.food}</span>
+    </div>
+    ${fBar(p,7)}
+    <div style="font-size:9px;color:var(--ink3);text-align:right">${ex.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+  </div>`}).join('')}
+</div>`;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  SCAN TAB  ═ */
+function vScan(){
+  const mr=S.matchResult;
+  return`
+<h2 style="font-size:20px;font-weight:800;margin-bottom:4px">Scan &amp; Log</h2>
+<p style="font-size:13px;color:var(--ink2);margin-bottom:20px">Take a photo of any printed station logo to create an inventory entry.</p>
+
+<p class="sec">Upload photo of logo</p>
+
+<div class="dz${S.file?' drag':''}" id="dz"
+  ondragover="event.preventDefault();this.classList.add('drag')"
+  ondragleave="this.classList.remove('drag')"
+  ondrop="onDrop(event)">
+  <input type="file" accept="image/*" capture="environment" onchange="onFile(event)">
+  <div style="font-size:38px;margin-bottom:10px">${S.file?'📸':'📷'}</div>
+  <div style="font-size:16px;font-weight:700;margin-bottom:4px">${S.file?S.file.name:'Take or upload a photo'}</div>
+  <div style="font-size:12px;color:var(--ink3)">${S.file?'Tap to change photo':'Point camera at any station logo · JPEG, PNG, HEIC'}</div>
+</div>
+
+${S.file?`<img id="prev-img" style="display:block;max-width:100%;max-height:200px;object-fit:contain;border-radius:10px;margin:12px auto 0;border:1.5px solid var(--bd)">`:''}
+
+${S.file&&!mr?`
+<button class="btn btn-blk" style="margin-top:12px" onclick="runMatch()" ${S.matchLoading?'disabled':''}>
+  ${S.matchLoading?`<div class="spin"></div> Identifying logo…`:`<span style="font-size:16px">🔍</span> Identify Logo & Log Entry`}
+</button>`:''}
+
+${mr?renderMatchBox(mr):''}
+
+<!-- How it works -->
+<div style="margin-top:22px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <div style="flex:1;height:1px;background:var(--bd)"></div>
+    <span style="font-size:12px;color:var(--ink3)">or select manually</span>
+    <div style="flex:1;height:1px;background:var(--bd)"></div>
+  </div>
+  <button class="btn btn-out" onclick="openManual()">🎨 Choose Station Logo (F01–F20)</button>
+</div>
+
+<div style="margin-top:18px;background:#F5F2EB;border-radius:var(--r);padding:14px 15px">
+  <div style="font-weight:700;font-size:12px;margin-bottom:9px">📷 Photo tips for best results</div>
+  <div style="font-size:12px;color:var(--ink2);line-height:1.9">
+    ✅ Logo fills most of the frame — <strong>bigger is better</strong><br>
+    ✅ Flat against a surface — no shadows across the logo<br>
+    ✅ Good even lighting — avoid direct sunlight glare<br>
+    ✅ Print at <strong>A4 size, 100% scale</strong> (no fit to page)<br>
+    ✅ Hold camera parallel to logo, not at an angle
+  </div>
+</div>`;
+}
+
+function renderMatchBox(mr){
+  if(mr&&mr.matched&&mr.station)return`
+  <div class="match-box match-ok">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <img src="${LogoEngine.renderToImg(mr.station,72)}" style="width:72px;height:72px;border-radius:8px;border:2px solid var(--gbd)">
+      <div>
+        <div style="font-size:24px;margin-bottom:2px">✅</div>
+        <div style="font-weight:800;font-size:17px;color:var(--green)">Logo Identified!</div>
+        <div style="font-size:13px;color:#1B5020;margin-top:2px"><strong>${mr.station.id}</strong> — ${sLabel(mr.station.id)}</div>
+        <div style="font-size:10px;color:var(--ink3);font-family:'JetBrains Mono',monospace">confidence: ${Math.round(mr.score*100)}%</div>
+      </div>
+    </div>
+    <button class="btn btn-blk" onclick="openEntry('${mr.station.id}')" style="margin-bottom:8px">
+      ➕ Log Food for ${sLabel(mr.station.id)}
+    </button>
+    <button class="btn-ghost" style="display:block;margin:0 auto" onclick="resetScan()">Try a different photo</button>
+  </div>`;
+  return`
+  <div class="match-box match-fail">
+    <div style="font-size:28px;margin-bottom:8px">❌</div>
+    <div style="font-weight:800;font-size:17px;color:var(--red);margin-bottom:4px">Logo Not Recognised</div>
+    <div style="font-size:12px;color:#7F1111;margin-bottom:${mr?.station?'4px':'12px'}">${mr?.reason||'Could not identify the logo'}</div>
+    ${mr?.station?`<div style="font-size:11px;color:var(--ink3);margin-bottom:12px">Closest: ${mr.station.id} — ${sLabel(mr.station.id)}</div>`:''}
+    <button class="btn btn-blk" style="background:var(--red);margin-bottom:8px" onclick="resetScan()">📸 Try Again</button>
+    <button class="btn btn-out" onclick="openManual()">🎨 Select Station Manually</button>
+  </div>`;
+}
+
+function onDrop(e){
+  e.preventDefault();document.getElementById('dz')?.classList.remove('drag');
+  const f=e.dataTransfer?.files?.[0];
+  if(f?.type.startsWith('image/')){S.file=f;S.matchResult=null;render();loadPrev(f)}
+}
+function onFile(e){const f=e.target?.files?.[0];if(f){S.file=f;S.matchResult=null;render();loadPrev(f)}}
+function loadPrev(file){
+  setTimeout(()=>{
+    const img=document.getElementById('prev-img');if(!img)return;
+    const url=URL.createObjectURL(file);img.onload=()=>URL.revokeObjectURL(url);img.src=url;
+  },20);
+}
+function resetScan(){S.file=null;S.matchResult=null;S.matchLoading=false;render()}
+
+async function runMatch(){
+  if(!S.file)return;
+  S.matchLoading=true;render();
+  try{
+    const result=await PhotoMatcher.match(S.file);
+    S.matchResult=result;S.matchLoading=false;render();
+    if(result?.matched)toast('✅ Matched '+result.station.id+'!');
+    else toast('No match — try a clearer photo',true);
+  }catch(err){
+    S.matchLoading=false;
+    S.matchResult={matched:false,score:0,reason:'Processing error — please try again'};render();
+  }
+}
+
+/* Manual selector */
+function openManual(){
+  closeOv('man-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov mid" id="man-ov" onclick="if(event.target===this)closeOv('man-ov')">
+    <div class="sheet modal" style="max-height:88vh">
+      <div class="sh-hd">
+        <span class="sh-title">Select Station</span>
+        <button class="sh-x" onclick="closeOv('man-ov')">×</button>
+      </div>
+      <div class="sh-body" style="padding-top:12px">
+        <p style="font-size:12px;color:var(--ink3);margin-bottom:14px">Tap any station to log food for it:</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="man-grid">
+          ${LogoEngine.STATIONS.map(st=>`
+          <button onclick="closeOv('man-ov');openEntry('${st.id}');resetScan()"
+            style="background:#fff;border:1.5px solid var(--bd);border-radius:9px;padding:9px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer">
+            <canvas id="man-cv-${st.id}" width="48" height="48" style="display:block;border-radius:4px;image-rendering:pixelated"></canvas>
+            <div style="font-size:9px;font-weight:700;color:#111">${st.id}</div>
+            <div style="font-size:7px;color:var(--ink3);text-align:center;line-height:1.3">${sLabel(st.id)}</div>
+          </button>`).join('')}
+        </div>
+      </div>
+    </div>
+  </div>`);
+  setTimeout(()=>{
+    LogoEngine.STATIONS.forEach(st=>{
+      const cv=document.getElementById('man-cv-'+st.id);
+      if(cv)LogoEngine.render(st,cv,48);
+    });
+  },30);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  ENTRY FORM  ═ */
+function openEntry(stId){
+  const st=getStation(stId)||LogoEngine.STATIONS[0];
+  S.entryStation=st;S.entryStep=0;
+  S.entryForm={food:'',cat:'',days:null,notes:'',time:new Date().toISOString()};
+  renderEntry();
+}
+function renderEntry(){
+  closeOv('ent-ov');
+  const st=S.entryStation,d=S.entryForm,step=S.entryStep;
+  const titles=['What food is this?','Confirm time & expiry','Add notes'];
+  const canNext=step===0?!!(d.food.trim()&&d.cat):true;
+  const cat=CATS[d.cat];
+
+  const s0=`
+  <input class="field" id="ef" placeholder="e.g. Chicken Breast, Lamb Curry…" value="${d.food}"
+    oninput="S.entryForm.food=this.value" style="margin-bottom:14px">
+  <span class="lbl">Category</span>
+  ${Object.entries(CATS).map(([k,c])=>`
+  <div class="cat-opt${d.cat===k?' sel':''}" style="--cc:${c.col};--cb:${c.bg}"
+    onclick="S.entryForm.cat='${k}';S.entryForm.days=${c.days};renderEntry()">
+    <div class="cat-radio"></div>
+    <span style="font-size:20px">${c.icon}</span>
+    <div>
+      <div style="font-weight:700;font-size:14px">${c.label}</div>
+      <div style="font-size:11px;color:var(--ink2)">${c.sub} · ${c.days}d max</div>
+    </div>
+  </div>`).join('')}`;
+
+  const s1=`
+  <div style="background:#F5F2EB;border-radius:9px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:2px">📅 Scan time (auto)</div>
+    <div style="font-weight:700;font-size:16px">${fDt(d.time)}</div>
+  </div>
+  ${cat?`<div style="background:${cat.bg};border:1.5px solid ${cat.bd};border-radius:9px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:11px;color:${cat.col};margin-bottom:2px">Default — ${cat.label}</div>
+    <div style="font-size:22px;font-weight:800;color:${cat.col}">${cat.days} day${cat.days>1?'s':''}</div>
+  </div>`:''}
+  <span class="lbl">Override expiry days</span>
+  <div class="day-grid">${[1,2,3,4].map(n=>`<button class="day-btn${d.days===n?' sel':''}" onclick="S.entryForm.days=${n};renderEntry()">${n}d</button>`).join('')}</div>
+  ${d.food&&cat?`<div style="background:var(--gbg);border:1.5px solid var(--gbd);border-radius:9px;padding:10px 13px;margin-top:12px">
+    <div style="font-size:11px;color:var(--green);font-weight:700">Preview</div>
+    <div style="font-size:13px;color:#145214;margin-top:2px">${d.food} · expires ${expDate(d.time,d.days||1).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+  </div>`:''}`;
+
+  const s2=`
+  <div style="background:#F5F2EB;border-radius:9px;padding:12px 14px;margin-bottom:12px">
+    <div style="font-size:11px;color:var(--ink3)">Logging for:</div>
+    <div style="font-weight:700;font-size:15px;margin-top:2px">${d.food} → ${cat?cat.label:'?'}</div>
+    <div style="font-size:11px;color:var(--ink3);margin-top:2px">${st.id} (${sLabel(st.id)}) · Expires in ${d.days||1}d</div>
+  </div>
+  <span class="lbl">Notes (optional)</span>
+  <textarea class="field" id="en" rows="3" placeholder="Batch #, supplier, temperature…"
+    oninput="S.entryForm.notes=this.value">${d.notes}</textarea>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:9px;padding:11px 13px;margin-top:12px;display:flex;gap:9px">
+    <span style="font-size:18px">🔄</span>
+    <div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:2px">Logo Update</div>
+      <div style="font-size:12px"><strong>${st.id}</strong> will now show <strong>${d.food||'…'}</strong> as its current item.</div>
+    </div>
+  </div>`;
+
+  // Logo mini preview for the sheet header
+  const logoDataURL=LogoEngine.renderToImg(st,52);
+
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov mid" id="ent-ov">
+    <div class="sheet modal" style="max-height:92vh">
+      <div class="sh-hd">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="${logoDataURL}" style="width:42px;height:42px;border-radius:7px;border:1.5px solid var(--bd)">
+          <div>
+            <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Step ${step+1} of 3 · ${st.id}</div>
+            <div class="sh-title">${titles[step]}</div>
+          </div>
+        </div>
+        <button class="sh-x" onclick="closeOv('ent-ov')">×</button>
+      </div>
+      <div style="padding:12px 18px 0">
+        <div class="step-bar">${[0,1,2].map(i=>`<div class="${i<=step?'on':''}"></div>`).join('')}</div>
+      </div>
+      <div class="sh-body" style="overflow-y:auto;max-height:54vh;padding-top:4px">
+        ${[s0,s1,s2][step]}
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-blk" onclick="entryNext()" ${!canNext?'disabled':''}>
+          ${step===2?'✅ Log Food Entry':'Continue →'}
+        </button>
+      </div>
+    </div>
+  </div>`);
+  if(step===0)setTimeout(()=>document.getElementById('ef')?.focus(),80);
+}
+
+function entryNext(){
+  const d=S.entryForm,step=S.entryStep;
+  if(step<2){S.entryStep++;renderEntry();return}
+  const cat=CATS[d.cat]||CATS.P;
+  const e={id:Date.now(),sId:S.entryStation.id,food:d.food,cat:d.cat,time:d.time,days:d.days||cat.days,notes:d.notes};
+  S.entries.unshift(e);
+  sv('fe',S.entries.slice(0,100));
+  closeOv('ent-ov');resetScan();
+  toast('✅ '+e.food+' logged at '+e.sId+'!');
+  gTab('dash');
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  INVENTORY  ═ */
+function vInv(){
+  const s=sorted(),fil=S.filter==='all'?s:s.filter(e=>e.cat===S.filter);
+  return`
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap;gap:7px">
+  <div><h2 style="font-size:20px;font-weight:800">Inventory</h2>
+  <p style="font-size:12px;color:var(--ink3)">${S.entries.length} items tracked</p></div>
+</div>
+<div class="pills">
+  <span class="pill${S.filter==='all'?' on':''}" onclick="S.filter='all';render()">All</span>
+  ${Object.entries(CATS).map(([k,v])=>`<span class="pill${S.filter===k?' on':''}" onclick="S.filter='${k}';render()">${v.icon} ${v.label.split(' ')[0]}</span>`).join('')}
+</div>
+<div class="card">
+${fil.map((e,i)=>{
+  const cat=CATS[e.cat],p=fpct(e.time,e.days),h=hLeft(expDate(e.time,e.days)),ex=expDate(e.time,e.days);
+  const st=getStation(e.sId);
+  return`<div class="irow" style="border-left-color:${cat.col}${i===fil.length-1?';border-bottom:none':''}">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+      ${st?`<img src="${LogoEngine.renderToImg(st,28)}" style="width:28px;height:28px;border-radius:5px;border:1px solid var(--bd);flex-shrink:0">`:`<span style="font-size:16px">${cat.icon}</span>`}
+      <span style="font-weight:700;font-size:14px">${e.food}</span>
+      ${stBadge(e)}
+      <button style="background:var(--rbg);color:var(--red);border:none;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer;margin-left:auto"
+        onclick="delEntry(${e.id})">✕</button>
+    </div>
+    <div style="display:flex;gap:10px;font-size:10px;color:var(--ink3);margin-bottom:6px;flex-wrap:wrap">
+      <span>🎨 ${e.sId} — ${sLabel(e.sId)}</span>
+      <span>📅 ${fDt(e.time)}</span>
+      <span>⏰ ${ex.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+    </div>
+    ${fBar(p)}
+    <div style="font-size:10px;font-weight:600;color:${fCol(p)};margin-top:3px">${Math.round(p)}% fresh · ${tLeft(h)}</div>
+    ${e.notes?`<div style="font-size:11px;color:var(--ink2);margin-top:3px">📝 ${e.notes}</div>`:''}
+  </div>`;}).join('')}
+${fil.length===0?'<div style="padding:36px;text-align:center;color:var(--ink3)">No items in this category</div>':''}
+</div>`;
+}
+function delEntry(id){S.entries=S.entries.filter(e=>e.id!==id);sv('fe',S.entries);toast('Entry removed');render()}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  LOGOS TAB  ═ */
+function vLogos(){
+  return`
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+  <div>
+    <h2 style="font-size:20px;font-weight:800">Station Logos</h2>
+    <p style="font-size:12px;color:var(--ink3)">20 unique high-contrast logos · print on A4 · rename any station</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-blk" style="width:auto;padding:9px 16px;font-size:13px" onclick="openPrintPreview()">👁 Preview &amp; Print</button>
+  </div>
+</div>
+
+<div style="background:var(--gbg);border:1.5px solid var(--gbd);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--green)">
+  ✅ <strong>20 unique printable logos</strong> — each has a large station number, unique icon, and distinct border shape.
+  Print on A4 at 100% scale. Stick on containers. Take a photo in the <strong>Scan tab</strong> to log food.
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px" id="logos-grid">
+${LogoEngine.STATIONS.map(st=>`
+  <div class="logo-card">
+    <div class="logo-canvas-wrap">
+      <canvas id="lgv-${st.id}" width="140" height="140" class="logo-canvas" style="width:140px;height:140px"></canvas>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:800;font-size:13px">${st.id}</div>
+        <div style="font-size:11px;color:var(--ink2)">${sLabel(st.id)}</div>
+      </div>
+      <button class="btn btn-out" style="width:auto;padding:5px 10px;font-size:10px" onclick="editLabel('${st.id}')">✏️</button>
+    </div>
+    <button class="btn btn-blk" style="font-size:12px;padding:8px" onclick="openEntry('${st.id}')">📷 Log Food Here</button>
+  </div>`).join('')}
+</div>`;
+}
+
+function renderLogoPreviews(){
+  LogoEngine.STATIONS.forEach(st=>{
+    const cv=document.getElementById('lgv-'+st.id);
+    if(cv)LogoEngine.render(st,cv,140);
+  });
+}
+
+function editLabel(id){
+  closeOv('edit-ov');
+  const current=sLabel(id);
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov mid" id="edit-ov" onclick="if(event.target===this)closeOv('edit-ov')">
+    <div class="sheet modal">
+      <div class="sh-hd">
+        <span class="sh-title">Rename ${id}</span>
+        <button class="sh-x" onclick="closeOv('edit-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        <span class="lbl">Station name</span>
+        <input class="field" id="edit-inp" value="${current}" maxlength="20"
+          onkeydown="if(event.key==='Enter')saveLabel('${id}')">
+        <button class="btn btn-blk" style="margin-top:12px" onclick="saveLabel('${id}')">✓ Save</button>
+      </div>
+    </div>
+  </div>`);
+  setTimeout(()=>document.getElementById('edit-inp')?.select(),80);
+}
+function saveLabel(id){
+  const v=document.getElementById('edit-inp')?.value.trim();
+  if(v){S.labels[id]=v;sv('fl',S.labels)}
+  closeOv('edit-ov');toast('Label saved');render();
+}
+
+/* ── Print sheet ─────────────────────────────────────────────────────── */
+function openPrintPreview(){
+  // Show a scrollable preview of all logos with a single Print button at the top
+  closeOv('prev-ov');
+  const PREV_SIZE = 130;
+
+  document.body.insertAdjacentHTML('beforeend', `
+  <div class="ov mid" id="prev-ov" onclick="if(event.target===this)closeOv('prev-ov')">
+    <div class="sheet" style="border-radius:20px;max-height:95vh;max-width:620px;width:100%;display:flex;flex-direction:column">
+      <div class="sh-hd" style="flex-shrink:0">
+        <div>
+          <div class="sh-title">🖨️ Print A4 Logo Sheet</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:2px">20 logos · A4 · 4 per row</div>
+        </div>
+        <button class="sh-x" onclick="closeOv('prev-ov')">×</button>
+      </div>
+
+      <!-- Big prominent Print button at top -->
+      <div style="padding:12px 16px;border-bottom:1px solid var(--bd);background:#fff;flex-shrink:0">
+        <button class="btn btn-blk" style="font-size:15px;padding:14px"
+          onclick="closeOv('prev-ov');openPrint()">
+          🖨️ Print Now — Opens System Print Dialog
+        </button>
+        <div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:8px">
+          Set paper size to <strong>A4</strong> · Scale: <strong>100% / Actual Size</strong> · No margins
+        </div>
+      </div>
+
+      <!-- Logo preview grid -->
+      <div style="overflow-y:auto;flex:1;padding:14px">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="prev-grid"></div>
+      </div>
+
+      <div style="padding:12px 16px;border-top:1px solid var(--bd);background:#fff;flex-shrink:0">
+        <button class="btn btn-out" onclick="closeOv('prev-ov')">Close</button>
+      </div>
+    </div>
+  </div>`);
+
+  // Render all logos into the preview grid
+  setTimeout(() => {
+    const grid = document.getElementById('prev-grid');
+    if(!grid) return;
+    grid.innerHTML = LogoEngine.STATIONS.map(st => `
+      <div style="background:#fff;border:1.5px solid var(--bd);border-radius:8px;
+        padding:8px;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center">
+        <canvas id="prv-cv-${st.id}" width="${PREV_SIZE}" height="${PREV_SIZE}"
+          style="display:block;width:${PREV_SIZE}px;height:${PREV_SIZE}px;
+          image-rendering:pixelated;border:2px solid #111;border-radius:6px"></canvas>
+        <div style="font-weight:800;font-size:11px">${st.id}</div>
+        <div style="font-size:9px;color:#555;font-weight:600;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px">
+          ${sLabel(st.id)}
+        </div>
+      </div>`).join('');
+
+    LogoEngine.STATIONS.forEach(st => {
+      const cv = document.getElementById('prv-cv-' + st.id);
+      if(cv) LogoEngine.render(st, cv, PREV_SIZE);
+    });
+  }, 40);
+}
+
+function openPrint(){
+  // Build the print page: populate #pgrid with canvases, then call window.print()
+  const grid = document.getElementById('pgrid');
+  if(!grid) return;
+
+  // Render all 20 logos into the print grid
+  const LOGO_SIZE = 160; // px — large enough for crisp printing
+  grid.innerHTML = LogoEngine.STATIONS.map(st => `
+    <div class="pcard" style="background:#fff;border:2px dashed #bbb;border-radius:8px;
+      padding:10px 8px;display:flex;flex-direction:column;align-items:center;
+      gap:6px;text-align:center">
+      <canvas id="prt-cv-${st.id}"
+        width="${LOGO_SIZE}" height="${LOGO_SIZE}"
+        style="display:block;width:${LOGO_SIZE}px;height:${LOGO_SIZE}px;
+               image-rendering:pixelated;border:2.5px solid #111;border-radius:8px">
+      </canvas>
+      <div style="font-weight:800;font-size:12px;letter-spacing:.02em">${st.id}</div>
+      <div style="font-size:10px;color:#444;font-weight:600;
+        max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${sLabel(st.id)}
+      </div>
+      <div style="font-size:7px;color:#bbb">fresh.app</div>
+    </div>`).join('');
+
+  // Draw all canvases synchronously
+  LogoEngine.STATIONS.forEach(st => {
+    const cv = document.getElementById('prt-cv-' + st.id);
+    if(cv) LogoEngine.render(st, cv, LOGO_SIZE);
+  });
+
+  // Small delay to ensure canvas pixels are committed, then print
+  setTimeout(() => window.print(), 120);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════  SETTINGS  ═ */
+function vSet(){
+  const plan=PLANS.find(p=>p.id===S.plan)||PLANS[0];
+  return`
+<h2 style="font-size:20px;font-weight:800;margin-bottom:16px">Settings</h2>
+<p class="sec">Current plan</p>
+<div class="card" style="padding:14px 16px;margin-bottom:18px;background:var(--gbg);border-color:var(--gbd)">
+  <div style="font-size:18px;font-weight:800;color:var(--green)">${plan.label}</div>
+  <div style="font-size:15px;font-weight:600;margin-top:1px">${plan.price}</div>
+  <div style="font-size:12px;color:var(--ink3)">${plan.desc}</div>
+</div>
+<p class="sec">Plans</p>
+<div class="card" style="margin-bottom:18px">
+  ${PLANS.map((p,i)=>`
+  <div onclick="S.plan='${p.id}';sv('fp','${p.id}');toast('Plan updated');render()"
+    style="padding:12px 14px;${i<PLANS.length-1?'border-bottom:1px solid var(--bd)':''}display:flex;align-items:center;gap:12px;cursor:pointer">
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:14px">${p.label}</div>
+      <div style="font-size:11px;color:var(--ink3)">${p.desc}</div>
+    </div>
+    <div style="font-weight:800;font-size:16px;color:var(--green)">${p.price}</div>
+    ${S.plan===p.id?'<span style="color:var(--green);font-size:18px">✓</span>':''}
+  </div>`).join('')}
+</div>
+<p class="sec">Redeem code</p>
+<div class="card" style="padding:14px 16px;margin-bottom:18px">
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <input class="field" placeholder="Enter promo or dev code…" id="pc" value="${S.promoCode}" style="flex:1"
+      oninput="S.promoCode=this.value.toUpperCase();this.value=S.promoCode"
+      onkeydown="if(event.key==='Enter')applyPromo()">
+    <button class="btn btn-blk" style="width:auto;padding:11px 16px" onclick="applyPromo()">Apply</button>
+  </div>
+  ${S.promoMsg?`<div style="font-size:12px;color:${S.promoErr?'var(--red)':'var(--green)'};">${S.promoMsg}</div>`:''}
+  <div style="font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.7">
+    <strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br>
+    <strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE
+  </div>
+</div>
+<p class="sec">How logo recognition works</p>
+<div class="card" style="margin-bottom:24px">
+${[
+  ['🎨','Logo design','Each of the 20 logos has a unique large number (01–20), border shape (circle/square/hex/diamond), and icon. High contrast black & white for camera reliability.'],
+  ['📷','Photo matching','Upload photo → crop at 12 different regions/scales → convert to 64×64 grayscale → compute Pearson correlation against all 20 reference images → best match above 72% wins.'],
+  ['✅','Why this works','Unlike barcode scanning, logo matching works even if the photo is slightly blurry, rotated, or taken at an angle. The large number ensures uniqueness even for similar shapes.'],
+  ['🍎','iOS deployment','GitHub Pages URL → Safari → Add to Home Screen → full-screen PWA. No App Store needed.'],
+].map(([ico,t,d],i,a)=>`
+<div style="padding:12px 14px;${i<a.length-1?'border-bottom:1px solid var(--bd)':''}display:flex;gap:10px">
+  <span style="font-size:17px;flex-shrink:0">${ico}</span>
+  <div><div style="font-weight:700;font-size:13px">${t}</div><div style="font-size:11px;color:var(--ink3);margin-top:1px">${d}</div></div>
+</div>`).join('')}
+</div>`;
+}
+function applyPromo(){
+  const c=(S.promoCode||'').trim().toUpperCase();
+  S.promoErr=false;S.promoMsg='';
+  if(BETA.has(c)){S.plan='free';sv('fp','free');S.promoMsg='🎉 30-day free trial activated!'}
+  else if(DEV.has(c)){S.plan='ent';sv('fp','ent');S.promoMsg='🛠️ Developer access granted!'}
+  else{S.promoMsg='❌ Invalid code. Try BETA2024.';S.promoErr=true}
+  render();
+}
+
+/* ── Auth overlay ─────────────────────────────────────────────────────── */
+function openAuth(){
+  const plan=PLANS.find(p=>p.id===S.plan)||PLANS[0];
+  closeOv('auth-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov mid" id="auth-ov" onclick="if(event.target===this)closeOv('auth-ov')">
+    <div class="sheet modal">
+      <div class="sh-hd">
+        <span class="sh-title">👤 Account</span>
+        <button class="sh-x" onclick="closeOv('auth-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        <div style="background:var(--gbg);border:1.5px solid var(--gbd);border-radius:9px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:11px;color:var(--ink3)">Current Plan</div>
+          <div style="font-weight:800;font-size:18px;color:var(--green)">${plan.label}</div>
+          <div style="font-size:12px;color:var(--ink3)">${plan.desc}</div>
+        </div>
+        <span class="lbl">Redeem code</span>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input class="field" id="auth-pc" placeholder="Enter code…" style="flex:1"
+            oninput="this.value=this.value.toUpperCase()"
+            onkeydown="if(event.key==='Enter')authApply()">
+          <button class="btn btn-blk" style="width:auto;padding:11px 16px" onclick="authApply()">Apply</button>
+        </div>
+        <div id="auth-msg" style="font-size:12px;min-height:16px;margin-bottom:10px"></div>
+        <div style="font-size:11px;color:var(--ink3);line-height:1.7">
+          <strong>Beta:</strong> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br>
+          <strong>Dev:</strong> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE
+        </div>
+      </div>
+    </div>
+  </div>`);
+}
+function authApply(){
+  const c=(document.getElementById('auth-pc')?.value||'').toUpperCase().trim();
+  const m=document.getElementById('auth-msg');
+  if(BETA.has(c)){S.plan='free';sv('fp','free');if(m)m.innerHTML='<span style="color:var(--green)">🎉 Free trial!</span>'}
+  else if(DEV.has(c)){S.plan='ent';sv('fp','ent');if(m)m.innerHTML='<span style="color:var(--green)">🛠️ Developer access!</span>'}
+  else if(m)m.innerHTML='<span style="color:var(--red)">❌ Invalid code</span>';
+}
+function closeOv(id){document.getElementById(id)?.remove()}
+
+/* ── Boot ─────────────────────────────────────────────────────────────── */
+// Pre-warm signatures in background (so first match is instant)
+setTimeout(()=>getRefSigs(), 800);
+render();
+</script>
+
+<!-- Dedicated print page — hidden normally, shown by window.print() -->
+<div id="print-page">
+  <div id="pgrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5mm;padding:8mm"></div>
+</div>
+
+</body>
+</html>
