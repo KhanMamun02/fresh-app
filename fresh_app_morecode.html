@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<!--
+  ════════════════════════════════════════════════════════════════════
+  FRESH — kitchen inventory with photo food recognition
+  ════════════════════════════════════════════════════════════════════
+
+  One file. No build step, no server, no dependencies to install.
+  Save it as index.html and it runs anywhere with a browser.
+
+  ── Publish it ──────────────────────────────────────────────────────
+    1. Create a GitHub repo and commit this file as `index.html`
+    2. Settings -> Pages -> Source: deploy from branch, root
+    3. Open https://<you>.github.io/<repo>/ on any device
+
+    A raw.githubusercontent.com link will NOT work — GitHub serves raw
+    files as plain text, so the browser shows the source instead of
+    running it. It must be GitHub Pages (or any static host).
+
+  ── What needs a network ────────────────────────────────────────────
+    The recogniser (CLIP) is fetched from a CDN on first use and cached
+    by the browser after that. Everything else — your inventory, your
+    training photos — stays on the device.
+
+    First load: ~50 MB. Later loads: ~25 MB, because the language half
+    is computed once and cached, then never downloaded again.
+
+  ── IF IT WILL NOT LOAD ON A PHONE, DO THIS FIRST ───────────────────
+    Open the page on a computer, wait for the recogniser to finish
+    loading, then Settings -> "Publish vocabulary to this file".
+    Paste the result over `const BUILTIN_VOCAB = null;` below and
+    commit.
+
+    That removes the language half of the recogniser from the phone's
+    job completely — about half the download, and none of the
+    vocabulary encoding, which is the step low-memory devices die on.
+    The file grows by ~155 KB; the phone downloads ~25 MB less.
+
+  ── Other things to check ───────────────────────────────────────────
+    Tap "What went wrong?" on the error, or Settings -> Run diagnostics.
+    In order of likelihood:
+      · Not enough free memory — close other apps and tabs, then retry
+      · Private/Incognito browsing — blocks the cache the model needs
+      · Connection dropped mid-download — retry resumes from cache
+      · Low storage on the device — free up a few hundred MB
+    Loading it once over wi-fi on the device makes every later visit
+    fast and offline-capable.
+
+  ── Training ────────────────────────────────────────────────────────
+    Train tab -> name an item, pick a category, add 10-20 photos.
+    It improves immediately, on that device.
+
+    To share training with everyone who opens your link:
+    Train tab -> "Publish to this file" -> paste the line it gives you
+    over `const BUILTIN_TRAINING` below -> commit.
+
+  ── Configuration ───────────────────────────────────────────────────
+    See CONFIG near the top of the script.
+  ════════════════════════════════════════════════════════════════════
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fresh">
+<meta name="theme-color" content="#1A1208">
+<title>Fresh — Eat Bright, Shine Always</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+
+/* ═══════════════════ DESIGN TOKENS ═══════════════════ */
+:root {
+  --bg:       #F5EDD6;
+  --bg2:      #EFE5C4;
+  --surface:  #FFFDF5;
+  --surface2: #FBF6E9;
+  --border:   rgba(140,100,20,.15);
+  --border2:  rgba(140,100,20,.25);
+
+  --text:     #1A1208;
+  --text2:    #4A3B1C;
+  --text3:    #8A7448;
+
+  --gold:     #B8860B;
+  --gold2:    #9A6F00;
+  --gold-dim: rgba(184,134,11,.12);
+
+  --veg:      #4CAF72;
+  --dairy:    #7EC8D4;
+  --meat:     #E07755;
+  --carb:     #C4A96B;
+
+  --r:  14px;
+  --r2: 10px;
+}
+
+/* ═══════════════════ RESET ═══════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+body{
+  font-family:'DM Sans',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;
+}
+button,input,textarea,select{font-family:inherit;outline:none}
+button{cursor:pointer;border:none;background:none}
+input,textarea{-webkit-appearance:none;appearance:none;border:none}
+::-webkit-scrollbar{width:2px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+
+/* ═══════════════════ BACKGROUND TEXTURE ═══════════════════ */
+body::before {
+  content:'';
+  position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 20%, rgba(184,134,11,.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(184,134,11,.05) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events:none;
+}
+#shell{position:relative;z-index:1}
+
+/* ═══════════════════ SHELL ═══════════════════ */
+#shell{display:flex;flex-direction:column;height:100dvh;max-width:600px;margin:0 auto}
+
+/* ═══════════════════ HEADER ═══════════════════ */
+#hdr{
+  flex-shrink:0;padding:0 18px;
+  padding-top:env(safe-area-inset-top,0px);
+  background:rgba(15,12,6,.95);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+#hdr-row{height:56px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{
+  width:34px;height:34px;
+  background:linear-gradient(135deg,var(--gold) 0%,var(--gold2) 100%);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.brand-name{
+  font-family:'Playfair Display',serif;font-size:20px;font-weight:700;
+  background:linear-gradient(135deg,#E8C97A,#C9A84C);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;letter-spacing:-.01em;
+}
+.brand-tag{font-size:8px;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-top:-3px}
+.hdr-r{display:flex;align-items:center;gap:8px}
+#apill{background:rgba(224,119,85,.2);color:#E07755;border:1px solid rgba(224,119,85,.3);
+  font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;display:none}
+#apill.on{display:block}
+.hdr-btn{background:var(--surface);color:var(--text2);border:1px solid var(--border2);
+  border-radius:8px;padding:6px 13px;font-size:12px;font-weight:500;cursor:pointer;transition:.2s}
+.hdr-btn:hover{background:var(--surface2)}
+
+/* ═══════════════════ TABS ═══════════════════ */
+#tabs{
+  flex-shrink:0;display:flex;overflow-x:auto;
+  background:rgba(15,12,6,.95);
+  border-bottom:1px solid var(--border);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+#tabs::-webkit-scrollbar{display:none}
+.tb{
+  flex:1;min-width:0;border:none;background:none;padding:13px 10px;
+  font-size:11.5px;font-weight:500;color:#B8A87A;
+  border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;justify-content:center;gap:5px;transition:.2s;letter-spacing:.01em;
+}
+.tb.on{color:var(--gold2);border-bottom-color:var(--gold);font-weight:700;text-shadow:0 0 12px rgba(232,201,122,.55),0 0 4px rgba(232,201,122,.4)}
+.tb:hover{color:var(--gold2)}
+.tb:active,.tb:focus,.tb:focus-visible{color:var(--gold2);outline:none}
+
+/* ═══════════════════ PAGE ═══════════════════ */
+#page{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 18px;padding-bottom:40px}
+.fade{animation:fadeUp .28s cubic-bezier(.22,.68,0,1.2) both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══════════════════ QUOTE BANNER ═══════════════════ */
+.quote-banner{
+  border:1px solid var(--border2);border-radius:var(--r);
+  padding:16px 18px;margin-bottom:20px;
+  background:linear-gradient(135deg,rgba(184,134,11,.08),rgba(184,134,11,.04));
+  position:relative;overflow:hidden;
+}
+.quote-banner::before{
+  content:'"';position:absolute;top:-10px;left:12px;
+  font-family:'Cormorant Garamond',serif;font-size:100px;line-height:1;
+  color:var(--gold);opacity:.12;pointer-events:none;
+}
+.quote-text{font-family:'Cormorant Garamond',serif;font-style:italic;
+  font-size:15px;line-height:1.6;color:var(--gold);position:relative;z-index:1}
+.quote-attr{font-size:10px;color:var(--text3);margin-top:6px;letter-spacing:.08em;text-transform:uppercase}
+
+/* ═══════════════════ SECTION LABEL ═══════════════════ */
+.sec{font-size:10px;font-weight:600;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;
+  display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ═══════════════════ CATEGORY CARDS ═══════════════════ */
+.cat-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:24px}
+.cat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px;position:relative;overflow:hidden;transition:.2s}
+.cat-card::before{content:'';position:absolute;top:0;right:0;width:70px;height:70px;
+  border-radius:0 var(--r) 0 70px;background:var(--cat-color,rgba(0,0,0,.04));opacity:.35}
+.cat-icon{font-size:22px;margin-bottom:8px}
+.cat-name{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.cat-count{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;line-height:1;color:var(--text)}
+.cat-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.cat-bar{height:3px;border-radius:99px;margin-top:10px;background:rgba(140,100,20,.1)}
+.cat-bar-fill{height:100%;border-radius:99px}
+
+/* ═══════════════════ PIE CHART SECTION ═══════════════════ */
+.pie-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:24px}
+.pie-section-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.pie-section-title{font-family:'Playfair Display',serif;font-size:16px;font-weight:400;color:var(--text)}
+.pie-section-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.pie-layout{display:flex;align-items:center;gap:18px}
+.pie-wrap{position:relative;flex-shrink:0}
+.pie-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.pie-center-num{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;line-height:1;color:var(--text)}
+.pie-center-lbl{font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.pie-legend{flex:1;display:flex;flex-direction:column;gap:8px}
+.legend-row{display:flex;align-items:center;gap:8px}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.legend-name{font-size:11px;color:var(--text2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend-val{font-size:11px;font-weight:600;color:var(--text)}
+.legend-pct{font-size:10px;color:var(--text3);min-width:32px;text-align:right}
+
+/* ═══════════════════ PRIORITY LIST ═══════════════════ */
+.prio-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+.prio-hd{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.prio-hd-left{font-family:'Playfair Display',serif;font-size:15px;color:var(--text)}
+.prio-hd-right{font-size:10px;color:var(--text3);letter-spacing:.05em;text-transform:uppercase}
+.prio-row{padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);transition:.15s}
+.prio-row:last-child{border-bottom:none}
+.prio-row:hover{background:var(--bg2)}
+.prio-cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.prio-food{font-weight:500;font-size:13px;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prio-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.prio-time{font-size:11px;color:var(--text3)}
+.prio-mini-pie{width:28px;height:28px;flex-shrink:0}
+
+/* ═══════════════════ ADD TAB ═══════════════════ */
+.scan-hero{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:32px 20px;text-align:center;
+  cursor:pointer;transition:.2s;position:relative;overflow:hidden;margin-bottom:14px;
+}
+.scan-hero:hover,.scan-hero.drag{border-color:var(--gold);background:var(--bg2)}
+.scan-hero input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.scan-hero-icon{font-size:44px;margin-bottom:12px;display:block}
+.scan-hero-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--text);margin-bottom:4px}
+.scan-hero-sub{font-size:12px;color:var(--text3);line-height:1.6}
+
+/* Model status strip */
+.mstat{display:flex;align-items:center;gap:10px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r2);padding:11px 13px;margin-bottom:14px}
+.mstat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mstat-txt{font-size:11.5px;color:var(--text2);flex:1;line-height:1.45}
+.mbar{height:3px;background:rgba(140,100,20,.12);border-radius:99px;overflow:hidden;margin-top:6px}
+.mbar-fill{height:100%;background:var(--gold);border-radius:99px;transition:width .3s}
+
+/* ═══════════════════ CLASSIFY RESULT ═══════════════════ */
+.res-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.res-thumb{width:84px;height:84px;flex:0 0 84px;object-fit:cover;
+  border-radius:10px;border:1px solid var(--border2);background:var(--bg2)}
+.res-eyebrow{font-size:10px;font-weight:600;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.res-name{font-family:'Playfair Display',serif;font-size:22px;line-height:1.15;
+  color:var(--text);margin-bottom:8px;word-break:break-word}
+.res-meter{display:flex;align-items:center;gap:9px}
+.res-track{flex:1;height:4px;background:rgba(140,100,20,.14);border-radius:99px;overflow:hidden;display:block}
+.res-fill{display:block;height:100%;border-radius:99px;transition:width .5s cubic-bezier(.2,.7,.3,1)}
+.res-pct{font-size:12px;color:var(--text3);font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+.alt-chip{background:var(--surface2);border:1px solid var(--border2);border-radius:99px;
+  padding:7px 13px;font-family:inherit;font-size:12px;color:var(--text2);cursor:pointer;transition:.15s}
+.alt-chip:hover{border-color:var(--gold);color:var(--text)}
+.warn-box{background:rgba(224,119,85,.09);border:1px solid rgba(224,119,85,.28);
+  border-radius:var(--r2);padding:11px 13px;font-size:12px;color:#9B4230;line-height:1.5;margin-bottom:14px}
+
+/* ═══════════════════ INVENTORY ═══════════════════ */
+.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px;transition:.2s}
+.inv-row{padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+.inv-thumb{width:52px;height:52px;border-radius:9px;border:1px solid var(--border2);
+  flex-shrink:0;overflow:hidden;background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;font-size:22px}
+.inv-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.inv-body{flex:1;min-width:0}
+.inv-food{font-weight:600;font-size:14px;color:var(--text);margin-bottom:3px}
+.inv-meta{font-size:10px;color:var(--text3);margin-bottom:8px}
+.inv-bar-wrap{background:rgba(140,100,20,.12);border-radius:99px;height:5px;overflow:hidden}
+.inv-bar-fill{height:100%;border-radius:99px;transition:width .5s}
+.inv-bar-row{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.inv-pct{font-size:10px;font-weight:600}
+.inv-time{font-size:10px;color:var(--text3)}
+.inv-del{background:rgba(224,119,85,.12);border:1px solid rgba(224,119,85,.2);
+  color:#E07755;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0}
+
+/* ═══════════════════ PILLS ═══════════════════ */
+.pills{display:flex;gap:7px;overflow-x:auto;margin-bottom:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.pills::-webkit-scrollbar{display:none}
+.pill{border:1px solid var(--border2);background:var(--surface);color:var(--text2);padding:5px 14px;
+  border-radius:99px;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:.15s}
+.pill.on{background:var(--gold);color:#fff;border-color:var(--gold);font-weight:700}
+
+/* ═══════════════════ BUTTONS ═══════════════════ */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+  font-family:inherit;font-weight:600;border-radius:var(--r2);border:none;transition:.2s}
+.btn:active{transform:scale(.97)}
+.btn-gold{background:linear-gradient(135deg,var(--gold),#C9A84C);color:#1A1208;font-size:14px;padding:13px;width:100%}
+.btn-gold:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;color:var(--text2);border:1px solid var(--border2);font-size:13px;padding:11px;width:100%}
+.btn-outline:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+
+/* ═══════════════════ FORM ═══════════════════ */
+.field{width:100%;padding:12px 14px;border-radius:var(--r2);border:1px solid var(--border2);
+  font-size:14px;background:var(--surface2);color:var(--text);transition:.2s}
+.field:focus{border-color:var(--gold);outline:none}
+textarea.field{resize:none}
+.field-lbl{font-size:10px;font-weight:600;color:var(--text3);margin-bottom:6px;display:block;
+  text-transform:uppercase;letter-spacing:.08em}
+.cat-opt{display:flex;align-items:center;gap:11px;padding:12px 14px;
+  border-radius:var(--r2);border:1px solid var(--border);background:var(--surface);
+  cursor:pointer;margin-bottom:8px;transition:.2s}
+.cat-opt.sel{border-color:var(--cc,var(--gold));background:rgba(184,134,11,.07)}
+.cat-radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--cc,var(--border));
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.2s}
+.cat-opt.sel .cat-radio{background:var(--cc);border-color:var(--cc)}
+.cat-opt.sel .cat-radio::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff}
+.day-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.day-btn{padding:11px;border:1px solid var(--border);background:var(--surface2);
+  color:var(--text2);border-radius:var(--r2);font-size:16px;font-weight:700;cursor:pointer;transition:.2s}
+.day-btn.sel{border-color:var(--gold);background:rgba(184,134,11,.1);color:var(--gold)}
+
+/* ═══════════════════ SHEET / OVERLAY ═══════════════════ */
+.ov{position:fixed;inset:0;background:rgba(26,18,8,.55);z-index:500;
+  display:flex;align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.ov.mid{align-items:center;padding:20px}
+.sheet{background:var(--bg2);border:1px solid var(--border2);
+  border-radius:20px 20px 0 0;max-height:93vh;overflow-y:auto;
+  width:100%;max-width:600px;animation:slideUp .26s cubic-bezier(.22,.68,0,1.1)}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes popIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.sheet.modal{border-radius:16px;max-height:88vh;max-width:490px;animation:popIn .2s ease}
+.sh-hd{padding:16px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;background:var(--bg2);z-index:5;border-radius:20px 20px 0 0}
+.sh-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:400;color:var(--text)}
+.sh-x{font-size:22px;color:var(--text3);background:none;border:none;cursor:pointer;
+  line-height:1;padding:2px 6px;border-radius:5px;transition:.15s}
+.sh-x:hover{background:var(--surface2);color:var(--text)}
+.sh-body{padding:18px}
+.sh-foot{padding:12px 18px;border-top:1px solid var(--border);background:var(--bg2);
+  position:sticky;bottom:0;display:flex;flex-direction:column;gap:8px;
+  padding-bottom:max(12px,env(safe-area-inset-bottom))}
+
+/* ═══════════════════ TOAST ═══════════════════ */
+#toast{position:fixed;top:max(env(safe-area-inset-top,0px),14px);left:50%;
+  transform:translateX(-50%);padding:10px 20px;border-radius:99px;
+  font-size:13px;font-weight:600;box-shadow:0 6px 28px rgba(0,0,0,.4);
+  z-index:9999;pointer-events:none;opacity:0;transition:opacity .2s;
+  white-space:nowrap;max-width:92vw}
+#toast.on{opacity:1}
+
+/* ═══════════════════ SPINNER ═══════════════════ */
+.spin{width:20px;height:20px;border:2.5px solid rgba(140,100,20,.25);
+  border-top-color:var(--gold);border-radius:50%;animation:ro .7s linear infinite;flex-shrink:0}
+@keyframes ro{to{transform:rotate(360deg)}}
+
+/* ═══════════════════ SETTINGS ═══════════════════ */
+.plan-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:13px 14px;cursor:pointer;transition:.2s;margin-bottom:8px}
+.plan-card.sel{border-color:var(--gold);background:var(--gold-dim)}
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <div id="hdr">
+    <div id="hdr-row">
+      <div class="brand">
+        <div class="brand-icon">🌿</div>
+        <div>
+          <div class="brand-name">Fresh</div>
+          <div class="brand-tag">Eat Bright · Shine Always</div>
+        </div>
+      </div>
+      <div class="hdr-r">
+        <div id="apill">⚠ <span id="acnt">0</span></div>
+        <button class="hdr-btn" onclick="openAuth()">👤</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tabs">
+    <button class="tb on" id="tb-dash" onclick="gTab('dash')">✦ Dashboard</button>
+    <button class="tb"    id="tb-add"  onclick="gTab('add')">📷 Add Food</button>
+    <button class="tb"    id="tb-inv"  onclick="gTab('inv')">≡ Inventory</button>
+    <button class="tb"    id="tb-train" onclick="gTab('train')">🎓 Train</button>
+    <button class="tb"    id="tb-set"  onclick="gTab('set')">⊙ Settings</button>
+  </div>
+
+  <div id="page"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════ */
+const CONFIG = {
+  // '' = run CLIP in this browser (no server needed).
+  // Set to e.g. 'https://api.yoursite.com' to use the Python API instead.
+  apiBase: '',
+  minConfidence: 0.28,   // below this we present a guess, not an answer
+  autoLoadModel: true,   // start downloading the model on first visit to Add Food
+
+  // The image half of the recogniser. clip-vit-base-patch32 is the smallest
+  // widely available CLIP. If a phone still cannot manage it, the answer is
+  // not a smaller file — it is running the classifier on a server and setting
+  // apiBase above.
+  model: 'Xenova/clip-vit-base-patch32',
+};
+
+/* ═══════════════════════════════════════════════════════
+   DAILY MOTIVATIONAL QUOTES
+   ═══════════════════════════════════════════════════════ */
+const QUOTES = [
+  { text:"Eat fresh and bright — let every bite make you shine.", attr:"Fresh Philosophy" },
+  { text:"Your body is your kitchen. Season it with colour, nourish it with life.", attr:"Fresh Philosophy" },
+  { text:"The freshest ingredient in any recipe is the care you bring to it.", attr:"Fresh Philosophy" },
+  { text:"Eat like the garden grows — vivid, vital, and alive in every moment.", attr:"Fresh Philosophy" },
+  { text:"Every fresh meal is a quiet act of love to yourself.", attr:"Fresh Philosophy" },
+  { text:"From harvest to table, freshness is the bridge between earth and energy.", attr:"Fresh Philosophy" },
+  { text:"Bright colours on your plate, bright light in your day.", attr:"Fresh Philosophy" },
+  { text:"Fresh food is not a luxury — it is the most ancient form of self-care.", attr:"Fresh Philosophy" },
+  { text:"Nourish deeply. Waste nothing. Shine endlessly.", attr:"Fresh Philosophy" },
+  { text:"Let the seasons guide your plate and your spirit.", attr:"Fresh Philosophy" },
+  { text:"A kitchen managed with care feeds more than hunger — it feeds the soul.", attr:"Fresh Philosophy" },
+  { text:"Eat with intention. Every ingredient has a story. Honour its journey.", attr:"Fresh Philosophy" },
+  { text:"The freshest moment is always now — in cooking, in living, in being.", attr:"Fresh Philosophy" },
+  { text:"Good food doesn't just sustain life — it celebrates it.", attr:"Fresh Philosophy" },
+  { text:"Where freshness meets purpose, excellence is served.", attr:"Fresh Philosophy" },
+];
+function getDailyQuote(){
+  const day = Math.floor(Date.now()/(1000*60*60*24));
+  return QUOTES[day % QUOTES.length];
+}
+
+/* ═══════════════════════════════════════════════════════
+   FOOD VOCABULARY
+   Every line is `name` plus the Fresh category that sets the
+   expiry clock. Add a line and the model can name it — there
+   is nothing to retrain.
+   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   BUILT-IN TRAINING  ·  ⬇ PASTE-OVER BLOCK ⬇
+   ═══════════════════════════════════════════════════════
+   Training normally lives in the browser that did it. To share it with every
+   device that opens your GitHub link, train on one device, press
+   "Publish to this file" in the Train tab, and replace the single line below
+   with what it gives you. Commit, and everyone starts pre-trained.
+   ═══════════════════════════════════════════════════════ */
+const BUILTIN_TRAINING = {"version":1,"model":"Xenova/clip-vit-base-patch32","items":[]};
+
+/* ═══════════════════════════════════════════════════════
+   BUILT-IN VOCABULARY  ·  ⬇ PASTE-OVER BLOCK ⬇
+   ═══════════════════════════════════════════════════════
+   THIS IS THE ONE THAT MATTERS FOR PHONES.
+
+   The recogniser has two halves. The language half turns the food names into
+   numbers; the image half looks at photos. The language half is only ever
+   needed to produce a fixed table — the same table every time — so there is no
+   reason for a phone to download it at all.
+
+   Load this page on a computer, go to Settings -> "Publish vocabulary to this
+   file", and paste the result over the line below. Phones then skip the
+   language half entirely: about half the download, and none of the heavy
+   vocabulary encoding that is what actually kills a low-memory device.
+   ═══════════════════════════════════════════════════════ */
+const BUILTIN_VOCAB = null;
+/* ⬆ END PASTE-OVER BLOCK ⬆ */
+
+const VOCAB = [
+  // ── Vegetables, fruit, herbs ──
+  ['baby spinach','veg'],['rocket leaves','veg'],['mixed salad leaves','veg'],['romaine lettuce','veg'],
+  ['iceberg lettuce','veg'],['kale','veg'],['cabbage','veg'],['red cabbage','veg'],['pak choi','veg'],
+  ['broccoli','veg'],['cauliflower','veg'],['brussels sprouts','veg'],['green beans','veg'],
+  ['asparagus','veg'],['courgettes','veg'],['aubergine','veg'],['bell peppers','veg'],
+  ['chilli peppers','veg'],['cucumber','veg'],['celery','veg'],['leeks','veg'],['spring onions','veg'],
+  ['red onions','veg'],['brown onions','veg'],['shallots','veg'],['garlic bulbs','veg'],
+  ['ginger root','veg'],['carrots','veg'],['parsnips','veg'],['beetroot','veg'],['radishes','veg'],
+  ['butternut squash','veg'],['pumpkin','veg'],['sweetcorn','veg'],['peas','veg'],['tomatoes','veg'],
+  ['cherry tomatoes','veg'],['avocados','veg'],['mushrooms','veg'],['fennel','veg'],
+  ['sweet potatoes','veg'],['potatoes','veg'],['lemons','veg'],['limes','veg'],['oranges','veg'],
+  ['apples','veg'],['bananas','veg'],['strawberries','veg'],['blueberries','veg'],['raspberries','veg'],
+  ['grapes','veg'],['melon','veg'],['pineapple','veg'],['mango','veg'],['fresh basil','veg'],
+  ['fresh parsley','veg'],['fresh coriander','veg'],['fresh mint','veg'],['fresh thyme','veg'],
+  ['fresh rosemary','veg'],['fresh dill','veg'],['fresh chives','veg'],['bean sprouts','veg'],
+  ['olives','veg'],['a mixed salad','veg'],['swiss chard','veg'],['artichokes','veg'],
+  ['turnips','veg'],['mangetout','veg'],['microgreens','veg'],['fresh sage','veg'],
+  ['fresh oregano','veg'],['spring greens','veg'],
+
+  // ── Dairy and eggs ──
+  ['a bottle of milk','dairy'],['double cream','dairy'],['soured cream','dairy'],['creme fraiche','dairy'],
+  ['natural yoghurt','dairy'],['greek yoghurt','dairy'],['butter','dairy'],['aged cheddar','dairy'],
+  ['mozzarella','dairy'],['parmesan','dairy'],['gruyere','dairy'],['brie','dairy'],['camembert','dairy'],
+  ['blue cheese','dairy'],['goat cheese','dairy'],['feta','dairy'],['halloumi','dairy'],
+  ['ricotta','dairy'],['mascarpone','dairy'],['cream cheese','dairy'],['cottage cheese','dairy'],
+  ['grated cheese','dairy'],['a carton of eggs','dairy'],['duck eggs','dairy'],['quail eggs','dairy'],
+  ['oat milk','dairy'],['almond milk','dairy'],['coconut milk','dairy'],
+  ['buttermilk','dairy'],['ghee','dairy'],['pecorino','dairy'],['custard','dairy'],
+
+  // ── Meat, fish, deli ──
+  ['ribeye steak','meat'],['sirloin steak','meat'],['beef mince','meat'],['beef brisket','meat'],
+  ['lamb chops','meat'],['lamb shoulder','meat'],['pork loin','meat'],['pork belly','meat'],
+  ['pork chops','meat'],['a whole raw chicken','meat'],['chicken breasts','meat'],['chicken thighs','meat'],
+  ['chicken wings','meat'],['turkey breast','meat'],['duck breast','meat'],['bacon rashers','meat'],
+  ['pancetta','meat'],['sausages','meat'],['chorizo','meat'],['salami','meat'],['prosciutto','meat'],
+  ['cooked ham','meat'],['pastrami','meat'],['pate','meat'],['salmon fillets','meat'],
+  ['smoked salmon','meat'],['cod fillets','meat'],['haddock','meat'],['sea bass','meat'],
+  ['mackerel','meat'],['sardines','meat'],['tuna steaks','meat'],['trout','meat'],['monkfish','meat'],
+  ['prawns','meat'],['king prawns','meat'],['scallops','meat'],['mussels','meat'],['clams','meat'],
+  ['oysters','meat'],['squid','meat'],['crab','meat'],['lobster','meat'],['tofu','meat'],['tempeh','meat'],
+  ['stewing beef','meat'],['veal','meat'],['black pudding','meat'],['plaice','meat'],
+  ['halibut','meat'],['octopus','meat'],['chicken mince','meat'],
+
+  // ── Bakery, grains, pasta, staples ──
+  ['a sourdough loaf','carb'],['a white bloomer loaf','carb'],['wholemeal bread','carb'],
+  ['baguettes','carb'],['ciabatta','carb'],['focaccia','carb'],['brioche','carb'],['bread rolls','carb'],
+  ['burger buns','carb'],['naan bread','carb'],['pitta bread','carb'],['tortilla wraps','carb'],
+  ['croissants','carb'],['pain au chocolat','carb'],['danish pastries','carb'],['muffins','carb'],
+  ['scones','carb'],['crumpets','carb'],['bagels','carb'],['doughnuts','carb'],['sponge cake','carb'],
+  ['puff pastry','carb'],['pizza dough','carb'],['breadcrumbs','carb'],['jasmine rice','carb'],
+  ['basmati rice','carb'],['arborio rice','carb'],['brown rice','carb'],['couscous','carb'],
+  ['quinoa','carb'],['pearl barley','carb'],['polenta','carb'],['rolled oats','carb'],
+  ['plain flour','carb'],['semolina','carb'],['spaghetti','carb'],['penne','carb'],['fusilli','carb'],
+  ['rigatoni','carb'],['tagliatelle','carb'],['lasagne sheets','carb'],['fresh pasta','carb'],
+  ['gnocchi','carb'],['ravioli','carb'],['tortellini','carb'],['egg noodles','carb'],
+  ['rice noodles','carb'],['udon noodles','carb'],['red lentils','carb'],['green lentils','carb'],
+  ['chickpeas','carb'],['black beans','carb'],['kidney beans','carb'],['cannellini beans','carb'],
+  ['butter beans','carb'],['sushi rice','carb'],['bulgur wheat','carb'],['cornflour','carb'],
+  ['linguine','carb'],['soba noodles','carb'],['split peas','carb'],['croutons','carb'],
+  ['shortcrust pastry','carb'],['filo pastry','carb'],['flatbreads','carb'],['wild rice','carb'],
+
+  // ── Not food: lets the model decline instead of guessing ──
+  ['an empty container','reject'],['a kitchen worktop','reject'],['a person','reject'],
+  ['a sheet of printed paper','reject'],['a screenshot of text','reject'],['a pet animal','reject'],
+];
+
+/* ═══════════════════════════════════════════════════════
+   APP STATE
+   ═══════════════════════════════════════════════════════ */
+const CATS = {
+  veg:   { label:'Vegetables',  sub:'Fresh produce',      days:4, col:'#4CAF72', bg:'rgba(76,175,114,.15)',  icon:'🥦' },
+  dairy: { label:'Dairy',       sub:'Milk, cheese, eggs', days:5, col:'#7EC8D4', bg:'rgba(126,200,212,.15)', icon:'🧀' },
+  meat:  { label:'Meat & Fish', sub:'Proteins',           days:2, col:'#E07755', bg:'rgba(224,119,85,.15)',  icon:'🥩' },
+  carb:  { label:'Carbs',       sub:'Grains & starches',  days:5, col:'#C4A96B', bg:'rgba(196,169,107,.15)', icon:'🌾' },
+};
+const PLANS=[
+  {id:'free', label:'30-Day Free Trial',price:'$0',       desc:'Beta users with promo code'},
+  {id:'basic',label:'Basic',            price:'$4.99/mo', desc:'Up to 50 items, 1 user'},
+  {id:'pro',  label:'Pro',              price:'$12.99/mo',desc:'Unlimited items, 5 users'},
+  {id:'ent',  label:'Enterprise',       price:'$29.99/mo',desc:'Unlimited + API + analytics'},
+];
+const BETA=new Set(['BETA2024','FRESH30','FTRIAL1','EARLYBIRD']);
+const DEV =new Set(['DEV-OWNER-001','DEV-TEST-002','ADMIN-FREE']);
+
+const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
+const hAgo=h=>new Date(Date.now()-h*36e5).toISOString();
+
+const S = {
+  tab:'dash',
+  entries: ls('fe2',[
+    {id:1,food:'Baby Spinach',      cat:'veg',  time:hAgo(2),  days:4,notes:'Farm fresh',   photo:null},
+    {id:2,food:'Aged Cheddar',      cat:'dairy',time:hAgo(18), days:5,notes:'Block cut',    photo:null},
+    {id:3,food:'Ribeye Steak',      cat:'meat', time:hAgo(6),  days:2,notes:'Batch A',      photo:null},
+    {id:4,food:'Sourdough Loaf',    cat:'carb', time:hAgo(10), days:5,notes:'Morning bake', photo:null},
+    {id:5,food:'Mixed Salad Leaves',cat:'veg',  time:hAgo(50), days:4,notes:'Hydroponic',   photo:null},
+    {id:6,food:'Free-Range Eggs',   cat:'dairy',time:hAgo(30), days:5,notes:'6 dozen',      photo:null},
+    {id:7,food:'Salmon Fillets',    cat:'meat', time:hAgo(40), days:2,notes:'Delivery #7',  photo:null},
+    {id:8,food:'Jasmine Rice',      cat:'carb', time:hAgo(4),  days:5,notes:'25kg bag open',photo:null},
+  ]),
+  plan: ls('fp','free'),
+  filter: 'all',
+
+  // Add-food flow
+  preview:null,      // large data URL for on-screen preview
+  thumb:null,        // small data URL stored with the entry
+  identifying:false,
+  result:null,       // { predictions:[{label,cat,confidence}], confidence }
+  scanError:null,
+
+  // Entry sheet
+  form:{food:'',cat:'',days:null,notes:'',time:''},
+
+  // Training
+  train:{label:'',cat:'',busy:false,done:0,total:0,items:[],loaded:false,msg:''},
+
+  promoCode:'', promoMsg:'', promoErr:false,
+};
+
+/* ─── Helpers ───────────────────────────────────── */
+const expDate=(t,d)=>{const x=new Date(t);x.setDate(x.getDate()+d);return x};
+const hLeft=e=>(new Date(e)-Date.now())/36e5;
+const fpct=(t,d)=>{const tot=d*864e5,el=Date.now()-new Date(t);return Math.max(0,Math.min(100,((tot-el)/tot)*100))};
+const fCol=p=>p>60?'#4CAF72':p>25?'#C4A96B':'#E07755';
+const tLeft=h=>{if(h<=0)return'Expired';if(h<1)return Math.round(h*60)+'m';if(h<24)return Math.round(h)+'h';return Math.floor(h/24)+'d '+Math.round(h%24)+'h'};
+const fDt=iso=>new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const sorted=()=>[...S.entries].sort((a,b)=>expDate(a.time,a.days)-expDate(b.time,b.days));
+const SMALL=new Set(['of','and','in','a','an','the','with']);
+const titleCase=s=>String(s||'').replace(/\b\w/g,c=>c.toUpperCase());
+/* 'a bottle of milk' -> 'Bottle of Milk'. The vocabulary is phrased for the
+   model's benefit; the shelf label should read like a person wrote it. */
+const cleanName=s=>String(s||'').replace(/^(?:a|an)\s+/i,'')
+  .split(' ').map((w,i)=>i>0&&SMALL.has(w.toLowerCase())?w.toLowerCase():titleCase(w)).join(' ');
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pctTxt=v=>Math.round(v*100)+'%';
+
+function toast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=err?'#9B4230':'linear-gradient(135deg,#C9A84C,#E8C97A)';
+  t.style.color=err?'#fff':'#1A1208';
+  t.classList.add('on');clearTimeout(S._tt);
+  S._tt=setTimeout(()=>t.classList.remove('on'),3200);
+}
+function closeOv(id){document.getElementById(id)?.remove()}
+
+function gTab(t){
+  S.tab=t;
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tb-'+t)?.classList.add('on');
+  render();
+  if((t==='add'||t==='train')&&CONFIG.autoLoadModel&&!CONFIG.apiBase) Vision.load();
+  if(t==='train') refreshTrained();
+}
+
+function render(){
+  const page=document.getElementById('page');
+  const exp2=S.entries.filter(e=>hLeft(expDate(e.time,e.days))<=0).length;
+  const crit=S.entries.filter(e=>{const p=fpct(e.time,e.days);return p<25&&p>0}).length;
+  const pill=document.getElementById('apill'),acnt=document.getElementById('acnt');
+  if(pill&&acnt){if(exp2+crit>0){pill.classList.add('on');acnt.textContent=exp2+crit}else pill.classList.remove('on')}
+  const map={dash:vDash,add:vAdd,inv:vInv,train:vTrain,set:vSet};
+  page.innerHTML=(map[S.tab]||vDash)();
+  page.className='fade';
+  if(S.tab==='dash'){
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{renderPieChart();renderMiniPies()}));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PIE CHART RENDERER
+   ═══════════════════════════════════════════════════════ */
+function renderPieChart(){
+  const canvas=document.getElementById('pie-cv');
+  if(!canvas)return;
+  const ctx=canvas.getContext('2d');
+  const SIZE=130;canvas.width=SIZE;canvas.height=SIZE;
+  const CX=SIZE/2,CY=SIZE/2,R=SIZE*0.46,IR=SIZE*0.26;
+  ctx.clearRect(0,0,SIZE,SIZE);
+
+  const groups={};
+  S.entries.forEach(e=>{
+    if(!CATS[e.cat])return;
+    if(!groups[e.cat])groups[e.cat]={total:0,count:0};
+    groups[e.cat].total+=fpct(e.time,e.days);
+    groups[e.cat].count++;
+  });
+  const slices=Object.entries(groups).map(([cat,{total,count}])=>({
+    cat,avg:total/count,count,col:CATS[cat].col
+  })).filter(s=>s.count>0);
+
+  if(slices.length===0){
+    ctx.fillStyle='rgba(140,100,20,.12)';ctx.beginPath();ctx.arc(CX,CY,R,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(CX,CY,IR,0,Math.PI*2);ctx.fillStyle='#FFFDF5';ctx.fill();
+    return;
+  }
+
+  const totalCount=slices.reduce((s,sl)=>s+sl.count,0);
+  let startAngle=-Math.PI/2;
+  slices.forEach(sl=>{
+    const sweep=(sl.count/totalCount)*Math.PI*2;
+    const endAngle=startAngle+sweep;
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,R,startAngle,endAngle);ctx.closePath();
+    ctx.fillStyle=sl.col;ctx.fill();
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,R*0.98,startAngle,endAngle);ctx.closePath();
+    ctx.fillStyle=`rgba(0,0,0,${Math.max(0,0.5-sl.avg/250)})`;ctx.fill();
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,R+2,startAngle,startAngle+0.01);ctx.closePath();
+    ctx.lineWidth=2;ctx.strokeStyle='#F5EDD6';ctx.stroke();
+    startAngle=endAngle;
+  });
+  ctx.beginPath();ctx.arc(CX,CY,IR,0,Math.PI*2);ctx.fillStyle='#FFFDF5';ctx.fill();
+}
+
+function drawMiniPie(canvas,pct,col){
+  const SIZE=28;canvas.width=SIZE;canvas.height=SIZE;
+  const ctx=canvas.getContext('2d');
+  const CX=SIZE/2,CY=SIZE/2,R=SIZE*0.44;
+  ctx.beginPath();ctx.arc(CX,CY,R,0,Math.PI*2);ctx.fillStyle='rgba(140,100,20,.12)';ctx.fill();
+  const sweep=(pct/100)*Math.PI*2;
+  ctx.beginPath();ctx.moveTo(CX,CY);ctx.arc(CX,CY,R,-Math.PI/2,-Math.PI/2+sweep);ctx.closePath();
+  ctx.fillStyle=col;ctx.fill();
+  ctx.beginPath();ctx.arc(CX,CY,R*0.52,0,Math.PI*2);ctx.fillStyle='#FFFDF5';ctx.fill();
+}
+function renderMiniPies(){
+  document.querySelectorAll('[data-pie-pct]').forEach(cv=>{
+    drawMiniPie(cv,parseFloat(cv.getAttribute('data-pie-pct')),cv.getAttribute('data-pie-col')||'#4CAF72');
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD VIEW
+   ═══════════════════════════════════════════════════════ */
+function vDash(){
+  const q=getDailyQuote();
+  const cc={veg:0,dairy:0,meat:0,carb:0};
+  S.entries.forEach(e=>{if(cc[e.cat]!==undefined)cc[e.cat]++});
+  const total=S.entries.length||1;
+  const s=sorted();
+
+  return `
+<div class="quote-banner">
+  <div class="quote-text">${esc(q.text)}</div>
+  <div class="quote-attr">${esc(q.attr)}</div>
+</div>
+
+<div class="sec">Food Categories</div>
+<div class="cat-strip">
+${Object.entries(CATS).map(([k,cat])=>{
+  const pct=Math.round((cc[k]||0)/total*100);
+  return `<div class="cat-card" style="--cat-color:${cat.col}40">
+    <div class="cat-icon">${cat.icon}</div>
+    <div class="cat-name">${cat.label}</div>
+    <div class="cat-count">${cc[k]||0}</div>
+    <div class="cat-sub">${cat.sub}</div>
+    <div class="cat-bar"><div class="cat-bar-fill" style="width:${pct}%;background:${cat.col}"></div></div>
+  </div>`;
+}).join('')}
+</div>
+
+<div class="sec" style="margin-top:4px">Freshness Overview</div>
+<div class="pie-section">
+  <div class="pie-section-hd">
+    <div>
+      <div class="pie-section-title">Freshness by Category</div>
+      <div class="pie-section-sub">Average remaining life per group</div>
+    </div>
+  </div>
+  <div class="pie-layout">
+    <div class="pie-wrap">
+      <canvas id="pie-cv" width="130" height="130" style="display:block"></canvas>
+      <div class="pie-center">
+        <div class="pie-center-num">${S.entries.length}</div>
+        <div class="pie-center-lbl">Items</div>
+      </div>
+    </div>
+    <div class="pie-legend">
+      ${Object.entries(CATS).map(([k,cat])=>{
+        const entries=S.entries.filter(e=>e.cat===k);
+        if(!entries.length)return '';
+        const avgFresh=Math.round(entries.reduce((s,e)=>s+fpct(e.time,e.days),0)/entries.length);
+        return `<div class="legend-row">
+          <div class="legend-dot" style="background:${cat.col}"></div>
+          <div class="legend-name">${cat.label}</div>
+          <div class="legend-val">${avgFresh}%</div>
+          <div class="legend-pct">${entries.length} item${entries.length>1?'s':''}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+</div>
+
+<div class="sec">Priority Queue</div>
+<div class="prio-card">
+  <div class="prio-hd">
+    <div class="prio-hd-left">Items by Urgency</div>
+    <div class="prio-hd-right">Freshness Remaining</div>
+  </div>
+  ${s.length?s.map(e=>{
+    const cat=CATS[e.cat]||CATS.veg;
+    const p=fpct(e.time,e.days);
+    const h=hLeft(expDate(e.time,e.days));
+    const col=fCol(p);
+    return `<div class="prio-row">
+      <div class="prio-cat-dot" style="background:${cat.col}"></div>
+      <div class="prio-food">${esc(e.food)}</div>
+      <div class="prio-right">
+        <div class="prio-time" style="color:${col}">${tLeft(h)}</div>
+        <canvas class="prio-mini-pie" data-pie-pct="${p}" data-pie-col="${col}" width="28" height="28" style="display:block"></canvas>
+      </div>
+    </div>`;
+  }).join(''):`<div style="padding:26px;text-align:center;color:var(--text3);font-size:12px">
+    Nothing logged yet — add your first item from the Add Food tab.</div>`}
+</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   ADD FOOD VIEW
+   ═══════════════════════════════════════════════════════ */
+function previewWarning(){
+  const proto=location.protocol;
+  let bad=null;
+  if(proto==='file:')bad='file';          // file: also reports a null origin
+  else if(proto==='about:'||proto==='blob:'||proto==='data:')bad='preview';
+  else{ try{ if(location.origin==='null')bad='preview' }catch(_){ bad='preview' } }
+  if(bad==='preview')return `<div class="warn-box" style="margin-bottom:14px">
+    <strong>This is a preview window, not a web page.</strong><br>
+    Preview frames block downloads, so the recogniser cannot load here.
+    Publish the file to GitHub Pages and open that link instead.<br>
+    Everything else — logging, inventory, manual entry — works fine right here.
+  </div>`;
+  // file:// works on desktop Chrome, so say nothing unless it actually failed.
+  if(bad==='file'&&Vision.state.status==='error')return `<div class="warn-box" style="margin-bottom:14px">
+    <strong>Opened as a local file.</strong><br>
+    That usually works, but if the download failed it is the likely cause.
+    Run <code>python -m http.server</code> in this folder and open http://localhost:8000,
+    or publish to GitHub Pages.
+  </div>`;
+  return '';
+}
+
+function modelStatusStrip(){
+  if(CONFIG.apiBase) return '';
+  const pv=previewWarning();
+  if(pv) return pv;
+  const v=Vision.state;
+  if(v.status==='ready') return '';
+
+  if(v.status==='loading'){
+    const pctNum=Math.round((v.progress||0)*100);
+    return `<div class="mstat">
+      <div class="spin"></div>
+      <div class="mstat-txt">
+        <div style="display:flex;justify-content:space-between;gap:10px">
+          <span>${esc(v.message||'Loading the food recogniser…')}</span>
+          <span style="color:var(--text3);font-variant-numeric:tabular-nums;flex-shrink:0">${pctNum}%</span>
+        </div>
+        <div class="mbar"><div class="mbar-fill" style="width:${pctNum}%"></div></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:5px">
+          ${v.detail?esc(v.detail)+' · ':''}${v.elapsed?v.elapsed+'s elapsed':'starting…'}
+        </div>
+        ${v.stalled?`<div style="font-size:11px;color:#9B4230;margin-top:5px;line-height:1.5">${esc(v.stalled)}</div>`:''}
+        <div style="font-size:11px;color:var(--text3);margin-top:5px">Keep this screen open until it finishes.</div>
+      </div>
+    </div>`;
+  }
+  if(v.status==='error'){
+    return `<div class="mstat" style="border-color:rgba(224,119,85,.3);background:rgba(224,119,85,.07)">
+      <div class="mstat-dot" style="background:#E07755"></div>
+      <div class="mstat-txt">${esc(v.message||'The recogniser could not load.')}
+        You can still add items by typing the name.<br>
+        <span style="color:var(--gold2);text-decoration:underline;cursor:pointer" onclick="Vision.load(true)">Retry</span>
+        &nbsp;·&nbsp;
+        <span style="color:var(--gold2);text-decoration:underline;cursor:pointer" onclick="showDiagnostics()">What went wrong?</span>
+      </div>
+    </div>`;
+  }
+  return `<div class="mstat">
+    <div class="mstat-dot" style="background:var(--gold)"></div>
+    <div class="mstat-txt">The recogniser downloads once (about 50 MB) and is then cached by your browser.
+      <span style="color:var(--gold2);text-decoration:underline;cursor:pointer" onclick="Vision.load(true)">Load it now</span>
+    </div>
+  </div>`;
+}
+
+function vAdd(){
+  const busy=S.identifying;
+  return `
+<div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:400;color:var(--text);margin-bottom:4px">Add Food</div>
+<div style="font-size:13px;color:var(--text3);margin-bottom:18px;line-height:1.5">
+  Take a photo of the food itself — or pick one from your library. Fresh identifies it and suggests the category and expiry.
+</div>
+
+${modelStatusStrip()}
+
+<div class="scan-hero${S.preview?' drag':''}" id="dz"
+  ondragover="event.preventDefault();this.classList.add('drag')"
+  ondragleave="this.classList.remove('drag')"
+  ondrop="onDrop(event)">
+  <input type="file" accept="image/*" onchange="onFile(event)" ${busy?'disabled':''}>
+  <span class="scan-hero-icon">${S.preview?'📸':'🥗'}</span>
+  <div class="scan-hero-title">${S.preview?'Tap to use a different photo':'Upload a photo of your food'}</div>
+  <div class="scan-hero-sub">${S.preview
+    ? 'Fill the frame with the item · good even lighting'
+    : 'Choose from your photo library · JPEG · PNG · HEIC'}</div>
+</div>
+
+${S.preview?`<img src="${S.preview}" alt="Your photo"
+  style="display:block;max-width:100%;max-height:210px;object-fit:contain;border-radius:var(--r);margin:14px auto 0;border:1px solid var(--border2)">`:''}
+
+${busy?`<div class="mstat" style="margin-top:14px">
+  <div class="spin"></div><div class="mstat-txt">Identifying the food…</div></div>`:''}
+
+${S.scanError?`<div class="warn-box" style="margin-top:14px">${esc(S.scanError)}</div>`:''}
+
+${S.preview&&!busy?`
+<button class="btn btn-gold" style="margin-top:12px" onclick="identify()">◎ Identify Food</button>`:''}
+
+<div style="display:flex;align-items:center;gap:12px;margin:22px 0 14px">
+  <div style="flex:1;height:1px;background:var(--border)"></div>
+  <span style="font-size:11px;color:var(--text3);letter-spacing:.06em">OR ADD MANUALLY</span>
+  <div style="flex:1;height:1px;background:var(--border)"></div>
+</div>
+<button class="btn btn-outline" onclick="openEntry(null)">✎ Type the item name</button>
+
+<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:16px;margin-top:20px">
+  <div style="font-size:11px;font-weight:600;color:var(--gold2);margin-bottom:10px;letter-spacing:.05em">💡 PHOTO TIPS</div>
+  <div style="font-size:12px;color:var(--text2);line-height:2">
+    ✦ Fill the frame with <strong style="color:var(--text)">one item</strong> — not the whole shelf<br>
+    ✦ Take packaging <strong style="color:var(--text)">off or open</strong> where you can<br>
+    ✦ Good even lighting — avoid glare and deep shadows<br>
+    ✦ Always check the suggestion before logging
+  </div>
+</div>`;
+}
+
+/* ─── Photo handling ─── */
+function onDrop(e){
+  e.preventDefault();
+  document.getElementById('dz')?.classList.remove('drag');
+  const f=e.dataTransfer?.files?.[0];
+  if(f?.type.startsWith('image/'))acceptPhoto(f);
+}
+function onFile(e){
+  const f=e.target?.files?.[0];
+  if(f)acceptPhoto(f);
+}
+
+/* Downscale in the browser: a 12 MP phone photo becomes ~120 KB, which is the
+   difference between a fast identification and a stalled one. */
+function shrink(file,maxEdge,quality){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const scale=Math.min(1,maxEdge/Math.max(img.width,img.height));
+      const cv=document.createElement('canvas');
+      cv.width=Math.max(1,Math.round(img.width*scale));
+      cv.height=Math.max(1,Math.round(img.height*scale));
+      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+      resolve(cv.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('That file could not be opened as an image.'))};
+    img.src=url;
+  });
+}
+
+async function acceptPhoto(file){
+  S.result=null;S.scanError=null;S.identifying=false;
+  try{
+    S.preview=await shrink(file,720,0.85);
+    S.thumb  =await shrink(file,160,0.7);
+  }catch(err){
+    S.preview=null;S.thumb=null;S.scanError=err.message;render();return;
+  }
+  render();
+  identify();
+}
+
+async function identify(){
+  if(!S.preview)return;
+  S.identifying=true;S.scanError=null;render();
+  try{
+    const result=CONFIG.apiBase
+      ? await classifyViaApi(S.preview)
+      : await Vision.classify(S.preview);
+    if(!result.predictions.length)throw new Error('No food recognised in that photo.');
+    S.result=result;S.identifying=false;render();
+    openClassify();
+  }catch(err){
+    S.identifying=false;
+    S.scanError=(err&&err.message)||'Could not identify that photo. Add the item by typing its name instead.';
+    render();
+  }
+}
+
+async function classifyViaApi(dataUrl){
+  const blob=await (await fetch(dataUrl)).blob();
+  const form=new FormData();
+  form.append('image',blob,'food.jpg');
+  const res=await fetch(CONFIG.apiBase.replace(/\/$/,'')+'/classify?top_k=4',{method:'POST',body:form});
+  const body=await res.json();
+  if(!res.ok)throw new Error(body.detail||'The classifier rejected that photo.');
+  return {
+    predictions:(body.predictions||[]).map(p=>({label:p.label,cat:p.category,confidence:p.confidence})),
+    confidence:body.confidence,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════
+   CLASSIFICATION RESULT SHEET
+   ═══════════════════════════════════════════════════════ */
+function openClassify(){
+  const preds=S.result.predictions;
+  const top=preds[0];
+  S.form={
+    food:cleanName(top.label),
+    cat:CATS[top.cat]?top.cat:'',
+    days:CATS[top.cat]?CATS[top.cat].days:null,
+    notes:'',
+    time:new Date().toISOString(),
+  };
+  renderClassify();
+}
+
+function pickAlt(i){
+  const preds=S.result.predictions;
+  if(!preds[i])return;
+  preds.unshift(preds.splice(i,1)[0]);
+  S.result.confidence=preds[0].confidence;
+  const top=preds[0];
+  S.form.food=cleanName(top.label);
+  if(CATS[top.cat]){S.form.cat=top.cat;S.form.days=CATS[top.cat].days}
+  renderClassify();
+  toast('✦ Set to '+cleanName(top.label));
+}
+
+function renderClassify(){
+  closeOv('cls-ov');
+  const preds=S.result.predictions;
+  const top=preds[0];
+  const alts=preds.slice(1,4);
+  const sure=top.confidence>=CONFIG.minConfidence;
+  const rejected=top.cat==='reject';
+  const d=S.form;
+  const cat=CATS[d.cat];
+  const canSave=!!(d.food.trim()&&d.cat);
+
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov" id="cls-ov">
+    <div class="sheet">
+      <div class="sh-hd">
+        <span class="sh-title">${rejected?'No food recognised':(sure?'Identified':'Best guess')}</span>
+        <button class="sh-x" onclick="closeOv('cls-ov')">×</button>
+      </div>
+      <div class="sh-body">
+
+        ${rejected?`<div class="warn-box">This doesn't look like food. Take another photo, or type the item name below.</div>`:''}
+        ${!sure&&!rejected?`<div class="warn-box">Low confidence. Check the name and category before logging.</div>`:''}
+
+        <div class="res-head">
+          ${S.preview?`<img class="res-thumb" src="${S.preview}" alt="Your photo">`:''}
+          <div style="flex:1;min-width:0">
+            <div class="res-eyebrow">${rejected?'Closest match':'Looks like'}${
+              top.taught?` · learned from ${top.taught} of your photo${top.taught>1?'s':''}`:''}</div>
+            <div class="res-name">${esc(cleanName(top.label))}</div>
+            <div class="res-meter">
+              <span class="res-track"><span class="res-fill" id="cls-fill"
+                style="width:0;background:${sure&&!rejected?'var(--gold)':'#E07755'}"></span></span>
+              <span class="res-pct">${pctTxt(top.confidence)}</span>
+            </div>
+          </div>
+        </div>
+
+        ${alts.length?`
+        <span class="field-lbl">Not right? Tap the correct one</span>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px">
+          ${alts.map((p,i)=>`<button class="alt-chip" onclick="pickAlt(${i+1})">
+            ${esc(cleanName(p.label))} <span style="color:var(--text3);font-size:10px">${pctTxt(p.confidence)}</span>
+          </button>`).join('')}
+        </div>`:''}
+
+        <span class="field-lbl">Item name</span>
+        <input class="field" id="cf" value="${esc(d.food)}" placeholder="e.g. Baby Spinach"
+          oninput="S.form.food=this.value;document.getElementById('cls-save').disabled=!(this.value.trim()&&S.form.cat)"
+          style="margin-bottom:16px">
+
+        <span class="field-lbl">Food category</span>
+        ${Object.entries(CATS).map(([k,c])=>`
+        <div class="cat-opt${d.cat===k?' sel':''}" style="--cc:${c.col}"
+          onclick="S.form.cat='${k}';S.form.days=${c.days};renderClassify()">
+          <div class="cat-radio"></div>
+          <span style="font-size:20px">${c.icon}</span>
+          <div>
+            <div style="font-weight:600;font-size:14px;color:var(--text)">${c.label}</div>
+            <div style="font-size:11px;color:var(--text2)">${c.sub} · default ${c.days}d</div>
+          </div>
+        </div>`).join('')}
+
+        <span class="field-lbl" style="margin-top:16px">Expires in</span>
+        <div class="day-grid">
+          ${[1,2,3,4,5,6,7,14].map(n=>`<button class="day-btn${d.days===n?' sel':''}"
+            onclick="S.form.days=${n};renderClassify()">${n}d</button>`).join('')}
+        </div>
+
+        ${d.food&&cat?`<div style="background:rgba(76,175,114,.08);border:1px solid rgba(76,175,114,.2);border-radius:var(--r2);padding:10px 13px;margin-top:14px">
+          <div style="font-size:10px;color:#4CAF72;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Preview</div>
+          <div style="font-size:13px;color:var(--text);margin-top:3px">
+            ${esc(d.food)} · expires ${expDate(d.time,d.days||cat.days).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+          </div>
+        </div>`:''}
+
+        <span class="field-lbl" style="margin-top:16px">Notes (optional)</span>
+        <textarea class="field" rows="2" placeholder="Batch #, supplier, temperature…"
+          oninput="S.form.notes=this.value">${esc(d.notes)}</textarea>
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-gold" id="cls-save" onclick="saveEntry()" ${canSave?'':'disabled'}>✦ Log Food Entry</button>
+        <button class="btn btn-outline" onclick="closeOv('cls-ov')">Cancel</button>
+      </div>
+    </div>
+  </div>`);
+
+  requestAnimationFrame(()=>{
+    const fill=document.getElementById('cls-fill');
+    if(fill)fill.style.width=pctTxt(top.confidence);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   MANUAL ENTRY SHEET
+   ═══════════════════════════════════════════════════════ */
+function openEntry(){
+  S.form={food:'',cat:'',days:null,notes:'',time:new Date().toISOString()};
+  renderEntry();
+}
+function renderEntry(){
+  closeOv('ent-ov');
+  const d=S.form,cat=CATS[d.cat];
+  const canSave=!!(d.food.trim()&&d.cat);
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov" id="ent-ov">
+    <div class="sheet">
+      <div class="sh-hd">
+        <span class="sh-title">Add an item</span>
+        <button class="sh-x" onclick="closeOv('ent-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        <span class="field-lbl">Item name</span>
+        <input class="field" id="ef" value="${esc(d.food)}" placeholder="e.g. Baby Spinach"
+          oninput="S.form.food=this.value;document.getElementById('ent-save').disabled=!(this.value.trim()&&S.form.cat)"
+          style="margin-bottom:16px">
+
+        <span class="field-lbl">Food category</span>
+        ${Object.entries(CATS).map(([k,c])=>`
+        <div class="cat-opt${d.cat===k?' sel':''}" style="--cc:${c.col}"
+          onclick="S.form.cat='${k}';S.form.days=${c.days};renderEntry()">
+          <div class="cat-radio"></div>
+          <span style="font-size:20px">${c.icon}</span>
+          <div>
+            <div style="font-weight:600;font-size:14px;color:var(--text)">${c.label}</div>
+            <div style="font-size:11px;color:var(--text2)">${c.sub} · default ${c.days}d</div>
+          </div>
+        </div>`).join('')}
+
+        <span class="field-lbl" style="margin-top:16px">Expires in</span>
+        <div class="day-grid">
+          ${[1,2,3,4,5,6,7,14].map(n=>`<button class="day-btn${d.days===n?' sel':''}"
+            onclick="S.form.days=${n};renderEntry()">${n}d</button>`).join('')}
+        </div>
+
+        ${d.food&&cat?`<div style="background:rgba(76,175,114,.08);border:1px solid rgba(76,175,114,.2);border-radius:var(--r2);padding:10px 13px;margin-top:14px">
+          <div style="font-size:10px;color:#4CAF72;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Preview</div>
+          <div style="font-size:13px;color:var(--text);margin-top:3px">
+            ${esc(d.food)} · expires ${expDate(d.time,d.days||cat.days).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+          </div>
+        </div>`:''}
+
+        <span class="field-lbl" style="margin-top:16px">Notes (optional)</span>
+        <textarea class="field" rows="2" placeholder="Batch #, supplier, temperature…"
+          oninput="S.form.notes=this.value">${esc(d.notes)}</textarea>
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-gold" id="ent-save" onclick="saveEntry(true)" ${canSave?'':'disabled'}>✦ Log Food Entry</button>
+      </div>
+    </div>
+  </div>`);
+  setTimeout(()=>document.getElementById('ef')?.focus(),80);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SAVE
+   ═══════════════════════════════════════════════════════ */
+function saveEntry(manual=false){
+  const d=S.form;
+  if(!d.food.trim()||!d.cat){toast('Add a name and category first',true);return}
+  const cat=CATS[d.cat];
+  S.entries.unshift({
+    id:Date.now(),
+    food:d.food.trim(),
+    cat:d.cat,
+    time:d.time,
+    days:d.days||cat.days,
+    notes:d.notes,
+    photo:manual?null:S.thumb,
+  });
+  // Cap the history so thumbnails stay inside the localStorage quota.
+  S.entries=S.entries.slice(0,80);
+  if(!sv('fe2',S.entries)){
+    S.entries=S.entries.map((e,i)=>i<20?e:{...e,photo:null});
+    if(!sv('fe2',S.entries))toast('Saved for this session only — storage is full',true);
+  }
+  closeOv('cls-ov');closeOv('ent-ov');
+  resetScan();
+  toast('✦ '+d.food.trim()+' logged');
+  gTab('dash');
+}
+
+function resetScan(){
+  S.preview=null;S.thumb=null;S.result=null;S.scanError=null;S.identifying=false;
+}
+
+/* ═══════════════════════════════════════════════════════
+   INVENTORY VIEW
+   ═══════════════════════════════════════════════════════ */
+function vInv(){
+  const s=sorted(),fil=S.filter==='all'?s:s.filter(e=>e.cat===S.filter);
+  return `
+<div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:400;color:var(--text);margin-bottom:4px">Inventory</div>
+<div style="font-size:12px;color:var(--text3);margin-bottom:16px">${S.entries.length} items tracked</div>
+<div class="pills">
+  <span class="pill${S.filter==='all'?' on':''}" onclick="S.filter='all';render()">All Items</span>
+  ${Object.entries(CATS).map(([k,v])=>`<span class="pill${S.filter===k?' on':''}" onclick="S.filter='${k}';render()">${v.icon} ${v.label}</span>`).join('')}
+</div>
+${fil.map(e=>{
+  const cat=CATS[e.cat]||CATS.veg;
+  const p=fpct(e.time,e.days),h=hLeft(expDate(e.time,e.days)),ex=expDate(e.time,e.days);
+  const col=fCol(p);
+  return `<div class="inv-card">
+    <div class="inv-row">
+      <div class="inv-thumb">${e.photo
+        ? `<img src="${e.photo}" alt="${esc(e.food)}">`
+        : `<span>${cat.icon}</span>`}</div>
+      <div class="inv-body">
+        <div class="inv-food">${esc(e.food)}</div>
+        <div class="inv-meta">${cat.icon} ${cat.label} · Expires ${ex.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+        <div class="inv-bar-wrap"><div class="inv-bar-fill" style="width:${p}%;background:${col}"></div></div>
+        <div class="inv-bar-row">
+          <div class="inv-pct" style="color:${col}">${Math.round(p)}% fresh</div>
+          <div class="inv-time">${tLeft(h)}</div>
+        </div>
+        ${e.notes?`<div style="font-size:11px;color:var(--text3);margin-top:5px">📝 ${esc(e.notes)}</div>`:''}
+      </div>
+      <button class="inv-del" onclick="delEntry(${e.id})">✕</button>
+    </div>
+  </div>`;
+}).join('')}
+${fil.length===0?`<div style="text-align:center;padding:50px 20px;color:var(--text3)">
+  <div style="font-size:36px;margin-bottom:10px">◌</div>
+  <div style="font-family:'Playfair Display',serif;font-size:16px">Nothing here yet</div>
+  <div style="font-size:12px;margin-top:4px">Add items from the Add Food tab</div>
+</div>`:''}`;
+}
+function delEntry(id){
+  S.entries=S.entries.filter(e=>e.id!==id);
+  sv('fe2',S.entries);toast('Entry removed');render();
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   TRAIN VIEW — teach it your actual stock
+   ═══════════════════════════════════════════════════════ */
+async function refreshTrained(){
+  try{
+    S.train.items=await Vision.listTrained();
+    S.train.loaded=true;
+    if(S.tab==='train')render();
+  }catch(err){
+    S.train.msg='Could not read the training store: '+(err.message||err);
+    if(S.tab==='train')render();
+  }
+}
+
+function vTrain(){
+  const tr=S.train;
+  const ready=Vision.state.status==='ready';
+  const totalPhotos=tr.items.reduce((s,i)=>s+i.count,0);
+  const known=[...new Set(VOCAB.filter(([,c])=>c!=='reject').map(([n])=>cleanName(n)))];
+
+  return `
+<div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:400;color:var(--text);margin-bottom:4px">Train the Recogniser</div>
+<div style="font-size:13px;color:var(--text3);margin-bottom:18px;line-height:1.5">
+  Photograph the food you actually stock. Each photo teaches the recogniser what that item looks like
+  <em>in your kitchen</em> — your packaging, your lighting, your shelves. It takes effect immediately.
+</div>
+
+${modelStatusStrip()}
+
+${tr.msg?`<div class="warn-box">${esc(tr.msg)}</div>`:''}
+
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:20px">
+  <span class="field-lbl">What food are you teaching it?</span>
+  <input class="field" id="tr-name" list="tr-known" value="${esc(tr.label)}"
+    placeholder="e.g. Baby Spinach — or a new item entirely"
+    oninput="S.train.label=this.value" ${tr.busy?'disabled':''} style="margin-bottom:14px">
+  <datalist id="tr-known">${known.map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
+
+  <span class="field-lbl">Category</span>
+  <div class="pills" style="margin-bottom:16px">
+    ${Object.entries(CATS).map(([k,c])=>`<span class="pill${tr.cat===k?' on':''}"
+      onclick="S.train.cat='${k}';render()">${c.icon} ${c.label}</span>`).join('')}
+  </div>
+
+  ${tr.busy?`
+  <div class="mstat" style="margin:0">
+    <div class="spin"></div>
+    <div class="mstat-txt">Learning photo ${tr.done} of ${tr.total}…
+      <div class="mbar"><div class="mbar-fill" style="width:${tr.total?Math.round(tr.done/tr.total*100):0}%"></div></div>
+    </div>
+  </div>`:`
+  <label class="btn btn-gold" style="width:100%;${(!ready||!tr.label.trim()||!tr.cat)?'opacity:.35;cursor:not-allowed':''}">
+    📷 Add photos of this item
+    <input type="file" accept="image/*" multiple style="display:none"
+      ${(!ready||!tr.label.trim()||!tr.cat)?'disabled':''} onchange="onTrainPhotos(event)">
+  </label>
+  <div style="font-size:11px;color:var(--text3);margin-top:9px;line-height:1.6">
+    ${!ready?'Waiting for the recogniser to load…'
+      :(!tr.label.trim()||!tr.cat)?'Enter a name and pick a category first.'
+      :'Pick several at once. 10–20 photos per item is the sweet spot — vary the angle, the lighting, and whether it is packaged or loose.'}
+  </div>`}
+</div>
+
+<div class="sec">What it has learned${totalPhotos?` · ${totalPhotos} photo${totalPhotos>1?'s':''}`:''}</div>
+${tr.items.length?tr.items.map(it=>{
+  const c=CATS[it.cat]||CATS.veg;
+  const strength=it.count>=15?'Strong':it.count>=6?'Getting there':'Just started';
+  const strengthCol=it.count>=15?'#4CAF72':it.count>=6?'#C4A96B':'#E07755';
+  const origin=it.builtIn&&it.onDevice?'shipped + this device'
+              :it.builtIn?'shipped with the app':'this device only';
+  return `<div class="inv-card"><div class="inv-row">
+    <div class="inv-thumb">${it.thumbs[0]?`<img src="${it.thumbs[0]}" alt="">`:`<span>${c.icon}</span>`}</div>
+    <div class="inv-body">
+      <div class="inv-food">${esc(cleanName(it.label))}</div>
+      <div class="inv-meta">${c.icon} ${c.label} · ${it.count} photo${it.count>1?'s':''}
+        · <span style="color:${strengthCol}">${strength}</span> · ${origin}</div>
+      ${it.thumbs.length>1?`<div style="display:flex;gap:5px;margin-top:6px">
+        ${it.thumbs.slice(1).map(th=>`<img src="${th}" alt=""
+          style="width:30px;height:30px;object-fit:cover;border-radius:5px;border:1px solid var(--border2)">`).join('')}
+      </div>`:''}
+    </div>
+    <button class="inv-del" onclick="forgetLabel('${esc(it.label).replace(/'/g,"\\'")}')">✕</button>
+  </div></div>`;
+}).join(''):`<div style="text-align:center;padding:40px 20px;color:var(--text3)">
+  <div style="font-size:34px;margin-bottom:10px">🎓</div>
+  <div style="font-family:'Playfair Display',serif;font-size:16px">Nothing taught yet</div>
+  <div style="font-size:12px;margin-top:4px;line-height:1.6">Until you add photos, the recogniser<br>works from text descriptions alone.</div>
+</div>`}
+
+<div class="sec" style="margin-top:22px">Share this training</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+  <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:13px">
+    Training lives in whichever browser did it. To give it to <strong style="color:var(--text)">every device
+    that opens your link</strong>, publish it into this file and commit the change.
+  </div>
+  <button class="btn btn-gold" onclick="publishTraining()" ${tr.items.length?'':'disabled'}>
+    ⬆ Publish to this file
+  </button>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button class="btn btn-outline" onclick="exportTraining()" ${tr.items.length?'':'disabled'}>⤓ Export</button>
+    <label class="btn btn-outline" style="margin:0">
+      ⤒ Import
+      <input type="file" accept="application/json,.json" style="display:none" onchange="onImportTraining(event)">
+    </label>
+  </div>
+  ${tr.items.length?`<button class="btn btn-outline" style="margin-top:8px;color:#9B4230;border-color:rgba(224,119,85,.35)"
+    onclick="clearTraining()">Clear this device's training</button>`:''}
+  <div style="font-size:11px;color:var(--text3);margin-top:11px;line-height:1.6">
+    Export and import move training between your own devices. Publish bakes it into the file itself.
+  </div>
+</div>
+
+<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:16px;margin-top:20px">
+  <div style="font-size:11px;font-weight:600;color:var(--gold2);margin-bottom:10px;letter-spacing:.05em">💡 HOW TRAINING WORKS HERE</div>
+  <div style="font-size:12px;color:var(--text2);line-height:1.9">
+    ✦ Each photo is turned into a <strong style="color:var(--text)">fingerprint</strong> and stored on this device — the image never leaves it<br>
+    ✦ Photos of the same item are averaged into one reference the recogniser matches against<br>
+    ✦ Your photos are weighted against the built-in text descriptions — <strong style="color:var(--text)">around 5 photos</strong> makes them equal, 20 makes yours decisive<br>
+    ✦ Teaching an item that isn't in the built-in list works exactly the same way<br>
+    ✦ Export sends the photos and fingerprints to a JSON file, for proper fine-tuning later
+  </div>
+</div>`;
+}
+
+async function onTrainPhotos(e){
+  const files=[...(e.target?.files||[])];
+  e.target.value='';
+  if(!files.length)return;
+  const label=S.train.label.trim().toLowerCase();
+  const cat=S.train.cat;
+  if(!label||!cat){toast('Name the item and pick a category first',true);return}
+
+  S.train.busy=true;S.train.done=0;S.train.total=files.length;S.train.msg='';render();
+  let failed=0;
+  for(const f of files){
+    try{
+      const big=await shrink(f,384,0.9);      // what the model sees
+      const small=await shrink(f,96,0.6);     // what you see in the list
+      await Vision.addSample(big,label,cat,small);
+    }catch(err){
+      console.error('training photo failed:',err);failed++;
+    }
+    S.train.done++;render();
+  }
+  S.train.busy=false;
+  await refreshTrained();
+  const ok=files.length-failed;
+  toast(failed
+    ? `Learned ${ok} of ${files.length} photos`
+    : `✦ Learned ${ok} photo${ok>1?'s':''} of ${cleanName(label)}`, failed>0);
+}
+
+async function forgetLabel(label){
+  if(!confirm('Forget everything learned about "'+cleanName(label)+'"?'))return;
+  await Vision.deleteLabel(label);
+  await refreshTrained();
+  toast('Forgotten '+cleanName(label));
+}
+
+async function clearTraining(){
+  if(!confirm('Delete every training photo? This cannot be undone.'))return;
+  await Vision.clearTraining();
+  await refreshTrained();
+  toast('Training data cleared');
+}
+
+async function importTraining(payload){
+  const rows = (payload && payload.samples) || [];
+  if (!rows.length) throw new Error('That file contains no training samples.');
+  let added = 0, skipped = 0;
+  for (const r of rows) {
+    if (!Array.isArray(r.embedding) || !r.label) { skipped++; continue; }
+    await tx('readwrite', s => s.add({
+      label: String(r.label).trim().toLowerCase(),
+      cat: r.category || r.cat || 'veg',
+      embedding: r.embedding,
+      thumb: r.photo || null,
+      added: r.added || new Date().toISOString(),
+    }));
+    added++;
+  }
+  await refreshPrototypes();
+  return { added, skipped };
+}
+
+function vocabSnippet(){
+  if (!ctx || !ctx.textEmbeds || !ctx.textEmbeds.length)
+    throw new Error('Load the recogniser first, then publish.');
+  const packed = packEmbeds(ctx.textEmbeds);
+  packed.hash = ctx.hash;
+  packed.model = (window.CONFIG && window.CONFIG.model) || 'Xenova/clip-vit-base-patch32';
+  return 'const BUILTIN_VOCAB = ' + JSON.stringify(packed) + ';';
+}
+
+function vocabIsBuiltIn(){
+  try {
+    if (typeof BUILTIN_VOCAB === 'undefined' || !BUILTIN_VOCAB) return false;
+    const { prompts } = buildPrompts();
+    return BUILTIN_VOCAB.hash === hashPrompts(prompts);
+  } catch (_) { return false; }
+}
+
+/* The paste-over line for the repo. Prototypes only — 512 numbers per item,
+   trimmed to 4 decimals, which is far smaller than shipping the photos and
+   is all inference actually needs. */
+function builtinSnippet(){
+  const items = prototypes.map(p => ({
+    label: p.label, cat: p.cat, n: p.n,
+    vec: Array.from(p.vec, x => Math.round(x * 1e4) / 1e4),
+  }));
+  return 'const BUILTIN_TRAINING = ' +
+    JSON.stringify({ version:1, model:'Xenova/clip-vit-base-patch32', items }) + ';';
+}
+
+async function onImportTraining(e){
+  const f=e.target?.files?.[0];
+  e.target.value='';
+  if(!f)return;
+  try{
+    const payload=JSON.parse(await f.text());
+    if(payload.format!=='fresh-training-export')throw new Error('That is not a Fresh training export.');
+    const {added,skipped}=await Vision.importTraining(payload);
+    await refreshTrained();
+    toast(skipped?`Imported ${added}, skipped ${skipped}`:`✦ Imported ${added} photos`,skipped>0);
+  }catch(err){
+    toast('Import failed: '+(err.message||err),true);
+  }
+}
+
+async function showDiagnostics(){
+  let d;
+  try{ d=await Vision.diagnostics(); }
+  catch(err){ d={error:'diagnostics failed: '+(err.message||err)}; }
+
+  const rows=[
+    ['Running in',d.runningIn||'unknown'],
+    ['Recogniser',d.status],
+    ['Error',d.error||'none'],
+    ['Address',d.url],
+    ['Secure context',d.secureContext?'yes':'NO — needs https'],
+    ['WebAssembly',d.webAssembly?'yes':'NO'],
+    ['WASM SIMD',d.wasmSimd?'yes':'no'],
+    ['SharedArrayBuffer',d.sharedArrayBuffer?'yes':'no (expected on GitHub Pages)'],
+    ['IndexedDB',d.indexedDB?'yes':'NO — private browsing?'],
+    ['createImageBitmap',d.createImageBitmap?'yes':'no'],
+    ['Storage',d.storage||'unknown'],
+    ['CPU cores',d.cores||'unknown'],
+    ['Device memory',d.memoryGB?d.memoryGB+' GB':'unknown'],
+    ['Online',d.online?'yes':'NO'],
+    ['Browser',d.userAgent],
+  ];
+  const text=rows.map(([k,v])=>k+': '+v).join('\n');
+
+  closeOv('diag-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov" id="diag-ov">
+    <div class="sheet">
+      <div class="sh-hd">
+        <span class="sh-title">Diagnostics</span>
+        <button class="sh-x" onclick="closeOv('diag-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        ${previewWarning()}
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:14px">
+          If "Running in" above says anything other than a real web page, that is the problem —
+          fix that first. Otherwise, the common causes on a phone are:
+          <strong style="color:var(--text)">not enough free memory</strong> (close other apps and tabs),
+          <strong style="color:var(--text)">private browsing</strong> (blocks the 50 MB cache), or
+          <strong style="color:var(--text)">a dropped connection</strong> mid-download.
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
+          ${rows.map(([k,v],i)=>`<div style="padding:9px 12px;${i<rows.length-1?'border-bottom:1px solid var(--border);':''}display:flex;gap:10px;align-items:flex-start">
+            <div style="font-size:11px;color:var(--text3);flex:0 0 40%">${esc(k)}</div>
+            <div style="font-size:11px;color:${/^(NO|no \()/.test(String(v))?'#9B4230':'var(--text)'};flex:1;word-break:break-word">${esc(v)}</div>
+          </div>`).join('')}
+        </div>
+        <textarea id="diag-txt" class="field" rows="4" readonly
+          style="margin-top:12px;font-family:ui-monospace,monospace;font-size:10px">${esc(text)}</textarea>
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-gold" onclick="copyDiagnostics()">⧉ Copy this report</button>
+        <button class="btn btn-outline" onclick="closeOv('diag-ov');Vision.load(true)">Retry loading</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function copyDiagnostics(){
+  const ta=document.getElementById('diag-txt');
+  if(!ta)return;
+  const done=()=>toast('✦ Copied');
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand('copy');done()});
+  }else{ta.select();document.execCommand('copy');done()}
+}
+
+function publishVocab(){
+  let snippet;
+  try{ snippet=Vision.vocabSnippet(); }
+  catch(err){ toast(err.message||String(err),true); return; }
+
+  const kb=Math.round(snippet.length/1024);
+  closeOv('vocab-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov" id="vocab-ov">
+    <div class="sheet">
+      <div class="sh-hd">
+        <span class="sh-title">Publish vocabulary</span>
+        <button class="sh-x" onclick="closeOv('vocab-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">
+          <strong style="color:var(--text)">1.</strong> Copy the line below (${kb} KB).<br>
+          <strong style="color:var(--text)">2.</strong> Open <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">index.html</code>
+          and find <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">const BUILTIN_VOCAB = null;</code><br>
+          <strong style="color:var(--text)">3.</strong> Replace that whole line with this one, then commit and reload on the phone.
+        </div>
+        <textarea id="vocab-txt" class="field" rows="6" readonly
+          style="font-family:ui-monospace,monospace;font-size:9px;line-height:1.4">${esc(snippet)}</textarea>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.6">
+          Numbers are packed to one byte each, which is about five times smaller than plain
+          text and accurate to five decimal places — the ranking is unchanged.
+        </div>
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-gold" onclick="copyEl('vocab-txt','paste it over the BUILTIN_VOCAB line')">⧉ Copy to clipboard</button>
+        <button class="btn btn-outline" onclick="downloadEl('vocab-txt','BUILTIN_VOCAB.txt')">⤓ Download as a file</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function copyEl(id,hint){
+  const ta=document.getElementById(id);
+  if(!ta)return;
+  const done=()=>toast('✦ Copied — '+hint);
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand('copy');done()});
+  }else{ta.select();document.execCommand('copy');done()}
+}
+function downloadEl(id,filename){
+  const ta=document.getElementById(id);
+  if(!ta)return;
+  saveBlob(new Blob([ta.value],{type:'text/plain'}),filename);
+  toast('✦ Downloaded');
+}
+
+function publishTraining(){
+  const snippet=Vision.builtinSnippet();
+  if(!snippet){toast('Nothing to publish yet',true);return}
+  const kb=Math.round(snippet.length/1024);
+  const items=Vision.prototypes.length;
+  closeOv('pub-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov" id="pub-ov">
+    <div class="sheet">
+      <div class="sh-hd">
+        <span class="sh-title">Publish to this file</span>
+        <button class="sh-x" onclick="closeOv('pub-ov')">×</button>
+      </div>
+      <div class="sh-body">
+        <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:14px">
+          <strong style="color:var(--text)">1.</strong> Copy the line below (${items} item${items>1?'s':''}, ${kb} KB).<br>
+          <strong style="color:var(--text)">2.</strong> Open <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">index.html</code>
+          and find <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">const BUILTIN_TRAINING</code>.<br>
+          <strong style="color:var(--text)">3.</strong> Replace that whole line with this one, then commit.
+        </div>
+        <textarea id="pub-txt" class="field" rows="7" readonly
+          style="font-family:ui-monospace,monospace;font-size:10px;line-height:1.5">${esc(snippet)}</textarea>
+        <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.6">
+          This carries the averaged fingerprints, not the photos — small enough to commit,
+          and everything the recogniser needs.
+        </div>
+      </div>
+      <div class="sh-foot">
+        <button class="btn btn-gold" onclick="copyPublish()">⧉ Copy to clipboard</button>
+        <button class="btn btn-outline" onclick="downloadPublish()">⤓ Download as a file</button>
+      </div>
+    </div>
+  </div>`);
+}
+
+function copyPublish(){
+  const ta=document.getElementById('pub-txt');
+  if(!ta)return;
+  const done=()=>toast('✦ Copied — paste it over the BUILTIN_TRAINING line');
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{
+      ta.select();document.execCommand('copy');done();
+    });
+  }else{ ta.select();document.execCommand('copy');done(); }
+}
+
+function downloadPublish(){
+  const ta=document.getElementById('pub-txt');
+  if(!ta)return;
+  saveBlob(new Blob([ta.value],{type:'text/plain'}),'BUILTIN_TRAINING.txt');
+  toast('✦ Downloaded');
+}
+
+function saveBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+async function exportTraining(){
+  try{
+    const data=await Vision.exportTraining();
+    saveBlob(new Blob([JSON.stringify(data)],{type:'application/json'}),
+             'fresh-training-'+new Date().toISOString().slice(0,10)+'.json');
+    toast('✦ Exported '+data.samples.length+' photos');
+  }catch(err){
+    toast('Export failed: '+(err.message||err),true);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SETTINGS VIEW
+   ═══════════════════════════════════════════════════════ */
+function vSet(){
+  const plan=PLANS.find(p=>p.id===S.plan)||PLANS[0];
+  const v=Vision.state;
+  const statusText={idle:'Not loaded yet',loading:'Downloading…',ready:'Ready',error:'Unavailable'}[v.status]||v.status;
+  return `
+<div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:400;color:var(--text);margin-bottom:20px">Settings</div>
+
+<div class="sec">Food Recogniser</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px;margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div style="font-weight:600;font-size:14px;color:var(--text)">Status</div>
+    <div style="font-size:13px;color:${v.status==='ready'?'#4CAF72':v.status==='error'?'#E07755':'var(--text3)'}">${esc(statusText)}</div>
+  </div>
+  <div style="font-size:11px;color:var(--text3);line-height:1.7">
+    ${CONFIG.apiBase
+      ? `Using the classifier API at ${esc(CONFIG.apiBase)}.`
+      : `CLIP runs in this browser — nothing is uploaded anywhere. The model downloads once (about 50 MB) and is cached.`}<br>
+    Vocabulary: ${VOCAB.length} items across four categories.<br>
+    Trained on your photos: ${Vision.prototypes.length
+      ? Vision.prototypes.length+' item'+(Vision.prototypes.length>1?'s':'')+', '
+        +Vision.prototypes.reduce((s,p)=>s+p.n,0)+' photos'
+      : 'none yet — see the Train tab'}.
+  </div>
+  ${v.status!=='ready'&&!CONFIG.apiBase?`<button class="btn btn-outline" style="margin-top:11px" onclick="Vision.load(true)">Load the recogniser now</button>`:''}
+  <button class="btn btn-outline" style="margin-top:8px" onclick="showDiagnostics()">Run diagnostics</button>
+</div>
+
+<div class="sec">Make It Work On Phones</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px;margin-bottom:20px">
+  ${Vision.vocabIsBuiltIn()?`
+  <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+    <div class="mstat-dot" style="background:#4CAF72"></div>
+    <div style="font-weight:600;font-size:14px;color:var(--text)">Vocabulary is built into this file</div>
+  </div>
+  <div style="font-size:12px;color:var(--text2);line-height:1.7">
+    Phones skip the language half of the recogniser entirely — roughly half the download,
+    and none of the vocabulary encoding that overwhelms a low-memory device.
+  </div>`:`
+  <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+    <div class="mstat-dot" style="background:#E07755"></div>
+    <div style="font-weight:600;font-size:14px;color:var(--text)">Not published yet</div>
+  </div>
+  <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:13px">
+    Right now every device has to download the language half of the recogniser and encode
+    all ${VOCAB.length} food names itself. That is the step phones fail on — and it produces
+    the same table every single time.<br><br>
+    <strong style="color:var(--text)">Do this once on a computer</strong>, paste the result into the file,
+    and commit. Phones then never touch it.
+  </div>
+  <button class="btn btn-gold" onclick="publishVocab()" ${v.status==='ready'?'':'disabled'}>
+    ⬆ Publish vocabulary to this file
+  </button>
+  ${v.status!=='ready'?`<div style="font-size:11px;color:var(--text3);margin-top:9px">Load the recogniser first — the button turns on when it is ready.</div>`:''}
+  `}
+</div>
+
+<div class="sec">Hosting &amp; Sharing</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 16px;margin-bottom:20px">
+  <div style="font-size:12px;color:var(--text2);line-height:1.8">
+    This whole app is one file. Commit it as <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">index.html</code>,
+    turn on GitHub Pages, and it runs on any device at your Pages URL.<br><br>
+    <strong style="color:var(--text)">A raw GitHub link will not work</strong> — raw files are served as
+    plain text, so you would see the source instead of the app. Use the Pages URL.<br><br>
+    Inventory and training are stored per browser. Move them between your own devices with
+    Export and Import in the Train tab; bake them into the file itself with Publish.
+  </div>
+  <div style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.7">
+    Storage in use — items: ${S.entries.length} · trained items: ${Vision.prototypes.length}
+    ${(typeof BUILTIN_TRAINING!=='undefined'&&BUILTIN_TRAINING.items.length)
+      ? '· shipped with this file: '+BUILTIN_TRAINING.items.length : '· nothing published into the file yet'}
+  </div>
+</div>
+
+<div class="sec">Current Plan</div>
+<div style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);border-radius:var(--r);padding:15px 16px;margin-bottom:20px">
+  <div style="font-family:'Playfair Display',serif;font-size:19px;color:var(--gold2)">${plan.label}</div>
+  <div style="font-size:15px;font-weight:600;color:var(--text);margin-top:2px">${plan.price}</div>
+  <div style="font-size:12px;color:var(--text3);margin-top:2px">${plan.desc}</div>
+</div>
+
+<div class="sec">Plans</div>
+${PLANS.map(p=>`
+<div class="plan-card${S.plan===p.id?' sel':''}" onclick="S.plan='${p.id}';sv('fp','${p.id}');toast('Plan updated');render()">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-weight:600;font-size:14px;color:var(--text)">${p.label}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:1px">${p.desc}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="font-weight:700;font-size:16px;color:var(--gold)">${p.price}</div>
+      ${S.plan===p.id?`<div style="color:var(--gold);font-size:16px">✓</div>`:''}
+    </div>
+  </div>
+</div>`).join('')}
+
+<div class="sec" style="margin-top:20px">Redeem Code</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:8px">
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <input class="field" placeholder="Enter promo or dev code…" id="pc" value="${esc(S.promoCode)}" style="flex:1"
+      oninput="S.promoCode=this.value.toUpperCase();this.value=S.promoCode"
+      onkeydown="if(event.key==='Enter')applyPromo()">
+    <button class="btn btn-gold" style="width:auto;padding:11px 16px" onclick="applyPromo()">Apply</button>
+  </div>
+  ${S.promoMsg?`<div style="font-size:12px;color:${S.promoErr?'#E07755':'#4CAF72'}">${esc(S.promoMsg)}</div>`:''}
+  <div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.8">
+    <span style="color:var(--text2)">Beta (30-day):</span> BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br>
+    <span style="color:var(--text2)">Dev / Owner:</span> DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE
+  </div>
+</div>
+
+<div class="sec" style="margin-top:20px">About</div>
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+  ${[
+    ['📷','Photo recognition','CLIP matches your photo against '+VOCAB.length+' food names and returns the closest, with a confidence score'],
+    ['🎓','Training','Photos you add in the Train tab are stored as fingerprints on this device and blended into every future match'],
+    ['🎨','Food categories','The matched item carries its category, which sets the default expiry: veg 4d · dairy 5d · meat 2d · carbs 5d'],
+    ['📊','Freshness pie chart','Average remaining freshness per category, as a donut'],
+    ['💬','Daily quotes','15 rotating kitchen philosophies — a new one each day'],
+  ].map(([ico,t,d],i,a)=>`
+  <div style="padding:12px 14px;${i<a.length-1?'border-bottom:1px solid var(--border);':''}display:flex;gap:10px">
+    <span style="font-size:16px;flex-shrink:0">${ico}</span>
+    <div><div style="font-weight:600;font-size:13px;color:var(--text)">${t}</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:1px">${d}</div></div>
+  </div>`).join('')}
+</div>`;
+}
+function applyPromo(){
+  const c=(S.promoCode||'').trim().toUpperCase();
+  S.promoErr=false;S.promoMsg='';
+  if(BETA.has(c)){S.plan='free';sv('fp','free');S.promoMsg='✦ 30-day free trial activated!'}
+  else if(DEV.has(c)){S.plan='ent';sv('fp','ent');S.promoMsg='✦ Developer access granted!'}
+  else{S.promoMsg='✕ Invalid code. Try BETA2024.';S.promoErr=true}
+  render();
+}
+
+/* ═══════════════════════════════════════════════════════
+   AUTH OVERLAY
+   ═══════════════════════════════════════════════════════ */
+function openAuth(){
+  const plan=PLANS.find(p=>p.id===S.plan)||PLANS[0];
+  closeOv('auth-ov');
+  document.body.insertAdjacentHTML('beforeend',`
+  <div class="ov mid" id="auth-ov" onclick="if(event.target===this)closeOv('auth-ov')">
+    <div class="sheet modal">
+      <div class="sh-hd"><span class="sh-title">Account</span><button class="sh-x" onclick="closeOv('auth-ov')">×</button></div>
+      <div class="sh-body">
+        <div style="background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);border-radius:var(--r2);padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Current Plan</div>
+          <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--gold2)">${plan.label}</div>
+          <div style="font-size:12px;color:var(--text3)">${plan.desc}</div>
+        </div>
+        <span class="field-lbl">Redeem Code</span>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input class="field" id="auth-pc" placeholder="Enter code…" style="flex:1" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')authApply()">
+          <button class="btn btn-gold" style="width:auto;padding:11px 16px" onclick="authApply()">Apply</button>
+        </div>
+        <div id="auth-msg" style="font-size:12px;min-height:16px;margin-bottom:10px"></div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.8">
+          Beta: BETA2024 · FRESH30 · FTRIAL1 · EARLYBIRD<br>
+          Dev: DEV-OWNER-001 · DEV-TEST-002 · ADMIN-FREE
+        </div>
+      </div>
+    </div>
+  </div>`);
+}
+function authApply(){
+  const c=(document.getElementById('auth-pc')?.value||'').toUpperCase().trim();
+  const m=document.getElementById('auth-msg');
+  if(BETA.has(c)){S.plan='free';sv('fp','free');if(m)m.innerHTML='<span style="color:#4CAF72">✦ Free trial activated!</span>'}
+  else if(DEV.has(c)){S.plan='ent';sv('fp','ent');if(m)m.innerHTML='<span style="color:#4CAF72">✦ Developer access!</span>'}
+  else if(m)m.innerHTML='<span style="color:#E07755">✕ Invalid code</span>';
+}
+
+/* ═══════════════════════════════════════════════════════
+   VISION — placeholder until the module below replaces it
+   ═══════════════════════════════════════════════════════ */
+/* Boot errors are captured here so a failure in the module script below shows
+   up in the interface instead of only in the console, where nobody looks. */
+window.__bootErrors = [];
+window.addEventListener('error', e => {
+  window.__bootErrors.push((e.message||'script error') +
+    (e.filename ? ' @ ' + String(e.filename).split('/').pop() + ':' + e.lineno : ''));
+  if (!window.Vision.__real) { window.Vision.state.status='error';
+    window.Vision.state.message='The recogniser script failed to start.'; try{render()}catch(_){} }
+});
+window.addEventListener('unhandledrejection', e => {
+  window.__bootErrors.push('unhandled: ' + (e.reason?.message || e.reason || 'unknown'));
+});
+
+window.Vision = window.Vision || {
+  __real:false,
+  state:{status:'idle',progress:0,message:''},
+  /* The old version of this was an empty function, which meant that if the
+     module below never ran, pressing "load" did nothing at all and no error was
+     ever shown. Failing silently is worse than failing. */
+  load(){
+    this.state.status='error';
+    this.state.message='The recogniser script never started. Open diagnostics for details.';
+    try{render()}catch(_){}
+    return Promise.reject(new Error('Vision module did not load'));
+  },
+  async classify(){throw new Error('The recogniser script never started.')},
+  async listTrained(){return []},
+  async addSample(){throw new Error('The recogniser is still starting up.')},
+  async deleteLabel(){}, async clearTraining(){},
+  async exportTraining(){return {samples:[]}},
+  async importTraining(){throw new Error('The recogniser is still starting up.')},
+  builtinSnippet(){return ''},
+  vocabSnippet(){throw new Error('Load the recogniser first.')},
+  vocabIsBuiltIn(){return false},
+  async diagnostics(){return {
+    status:'module never started', moduleLoaded:false,
+    bootErrors:(window.__bootErrors||[]).join(' | ')||'none (script may have been blocked entirely)',
+    error:'The recogniser module block did not run.',
+    url:location.href, protocol:location.protocol, secureContext:window.isSecureContext,
+    webAssembly:typeof WebAssembly!=='undefined', indexedDB:typeof indexedDB!=='undefined',
+    online:navigator.onLine, userAgent:navigator.userAgent }},
+  prototypes:[],
+};
+
+/* Top-level `const` lives in the global lexical scope, not on `window`, so the
+   module script below cannot reach it. Publish what it needs explicitly. */
+window.S = S;
+window.VOCAB = VOCAB;
+window.CATS = CATS;
+window.CONFIG = CONFIG;
+window.render = render;
+
+render();
+
+/* If the module script below has not replaced this object shortly after load,
+   something stopped it — a blocked CDN, a strict content policy, or a browser
+   that will not run module scripts. Tell the user rather than sitting idle. */
+setTimeout(() => {
+  if (!window.Vision.__real) {
+    window.Vision.state.status = 'error';
+    window.Vision.state.message = window.__bootErrors.length
+      ? 'The recogniser script failed: ' + window.__bootErrors[0]
+      : 'The recogniser script did not start. It may be blocked by the network or the browser.';
+    try{ render(); }catch(_){}
+  }
+}, 6000);
+</script>
+
+<!-- ═══════════════════════════════════════════════════════
+     VISION — CLIP zero-shot food recognition, in the browser
+     Runs entirely client-side via transformers.js. No server,
+     no photo ever leaves the device.
+     ═══════════════════════════════════════════════════════ -->
+<script type="module">
+const CDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+const state = { status:'idle', progress:0, message:'' };
+let loadPromise = null;
+let ctx = null;   // { processor, vision_model, textEmbeds, labels }
+
+let lastPaint = 0;
+let tickTimer = null, startedAt = 0, lastEventAt = 0;
+
+function startTicker(){
+  startedAt = lastEventAt = Date.now();
+  clearInterval(tickTimer);
+  tickTimer = setInterval(() => {
+    if (state.status !== 'loading') { clearInterval(tickTimer); tickTimer = null; return; }
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    const quiet = Math.round((Date.now() - lastEventAt) / 1000);
+    state.elapsed = secs;
+    // Nothing heard for a while: say so rather than leaving a frozen message.
+    state.stalled = quiet > 25
+      ? (state.progress > 0.95
+          ? 'Still compiling. Phones can take a couple of minutes here — keep this screen open.'
+          : 'No data for ' + quiet + 's. If it does not move, check the connection and retry.')
+      : '';
+    setState({}, true);
+  }, 1000);
+}
+function setState(patch, force = false){
+  const statusChanged = patch.status && patch.status !== state.status;
+  Object.assign(state, patch);
+  // The download callback fires hundreds of times; repainting on each one
+  // would thrash the DOM for no visible benefit.
+  const now = Date.now();
+  if (!force && !statusChanged && now - lastPaint < 250) return;
+  lastPaint = now;
+  const tab = window.S && window.S.tab;
+  if (tab === 'add' || tab === 'set' || tab === 'train') window.render();
+}
+
+function l2norm(v){
+  let s = 0;
+  for (let i = 0; i < v.length; i++) s += v[i] * v[i];
+  const n = Math.sqrt(s) || 1;
+  return v.map(x => x / n);
+}
+
+/* int8 + base64. A 512-float vector becomes 512 bytes instead of ~3.5 KB of
+   JSON, and the loss is immaterial: cosine 0.99999 against the original, with
+   identical top-5 ranking. */
+function packEmbeds(embeds){
+  const dim = embeds[0].length, n = embeds.length;
+  const scales = new Array(n);
+  const bytes = new Uint8Array(n * dim);
+  for (let i = 0; i < n; i++) {
+    const v = embeds[i];
+    let m = 0;
+    for (let j = 0; j < dim; j++) m = Math.max(m, Math.abs(v[j]));
+    const s = (m / 127) || 1e-8;
+    scales[i] = +s.toExponential(5);
+    for (let j = 0; j < dim; j++)
+      bytes[i * dim + j] = Math.max(0, Math.min(255, Math.round(v[j] / s) + 128));
+  }
+  let bin = ''; const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return { dim, n, scales, data: btoa(bin) };
+}
+
+function unpackEmbeds(p){
+  const bin = atob(p.data);
+  const raw = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+  const out = new Array(p.n);
+  for (let i = 0; i < p.n; i++) {
+    const s = p.scales[i], v = new Array(p.dim);
+    for (let j = 0; j < p.dim; j++) v[j] = (raw[i * p.dim + j] - 128) * s;
+    out[i] = l2norm(v);   // renormalising absorbs most of the quantisation error
+  }
+  return out;
+}
+
+function hashPrompts(list){
+  // Cheap FNV-1a, only used to notice when the vocabulary changed.
+  let h = 0x811c9dc5;
+  const s = list.join('\u0000');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16);
+}
+
+function buildPrompts(){
+  const labels = window.VOCAB.map(([name, cat]) => ({ name, cat }));
+  const prompts = labels.map(({ name, cat }) =>
+    cat === 'reject' ? `a photo of ${name}` : `a close-up photo of ${name}, a food ingredient`);
+  return { labels, prompts };
+}
+
+async function build(){
+  // Only an opaque-origin frame is a hard stop. file:// is reported as an
+  // advisory because Chrome does allow it, and blocking it would break a
+  // setup that works.
+  if (sandboxIssue() === 'preview') throw new Error(SANDBOX_MSG.preview);
+
+  setState({ status:'loading', progress:0.02, message:'Starting the recogniser…', detail:'' });
+  startTicker();
+
+  // Safari evicts cached data aggressively, which is why the model can appear
+  // to download again on every visit. Asking for persistence usually stops it.
+  try { await navigator.storage?.persist?.(); } catch (_) {}
+
+  let T;
+  try {
+    T = await import(CDN);
+  } catch (e) {
+    throw new Error('Could not reach the CDN. Check the connection, then retry.');
+  }
+
+  T.env.allowLocalModels = false;
+  T.env.useBrowserCache = true;
+
+  // Multi-threaded WASM needs SharedArrayBuffer, which needs COOP/COEP headers.
+  // GitHub Pages does not send them, so threads must be off or the runtime
+  // fails to start — this is the usual reason it dies on a phone.
+  try {
+    const wasm = T.env.backends?.onnx?.wasm;
+    if (wasm) {
+      wasm.numThreads = 1;
+      if (typeof SharedArrayBuffer === 'undefined') wasm.proxy = false;
+    }
+  } catch (_) { /* older builds expose this differently; single-thread is the default there */ }
+
+  const MODEL = (window.CONFIG && window.CONFIG.model) || 'Xenova/clip-vit-base-patch32';
+  const opts = { quantized: true };
+
+  const mb = b => (b / 1048576).toFixed(1);
+  let lastPct = -1;
+  const track = (base, span, phase) => p => {
+    if (!p) return;
+    if (p.status === 'progress' && p.total) {
+      lastEventAt = Date.now();
+      const pct = p.loaded / p.total;
+      if (Math.abs(pct - lastPct) < 0.01) return;
+      lastPct = pct;
+      setState({ progress: base + span * pct, message: phase,
+                 detail: mb(p.loaded) + ' of ' + mb(p.total) + ' MB' });
+    } else if (p.status === 'done') {
+      lastEventAt = Date.now();
+      lastPct = -1;
+      // The file is here, but ONNX now compiles it for this device. That step
+      // reports nothing and can take a minute on a phone, which is why this
+      // used to look frozen on the previous message.
+      setState({ message:'Preparing the recogniser…',
+                 detail:'Unpacking and compiling — this is the slow part on a phone.' }, true);
+    }
+  };
+
+  const { labels, prompts } = buildPrompts();
+  const hash = hashPrompts(prompts);
+  const key = 'textEmbeds:' + MODEL + ':' + hash;
+
+  // Three places the vocabulary table can come from, cheapest first:
+  //   1. baked into this file  — no download, no text model, works on any phone
+  //   2. this device's cache   — computed here on a previous visit
+  //   3. downloaded and computed — the expensive path, and the one that fails
+  //                                on low-memory devices
+  let embeds = null;
+
+  const builtinVocab = (typeof BUILTIN_VOCAB !== 'undefined') ? BUILTIN_VOCAB : null;
+  if (builtinVocab && builtinVocab.hash === hash && builtinVocab.n === prompts.length) {
+    try {
+      embeds = unpackEmbeds(builtinVocab);
+      setState({ progress:0.45, message:'Using the built-in vocabulary…' });
+    } catch (e) {
+      console.warn('Built-in vocabulary could not be read; falling back.', e);
+      embeds = null;
+    }
+  }
+
+  if (!embeds) embeds = await metaGet(key);
+
+  if (embeds && embeds.length === prompts.length) {
+    setState({ progress:0.45, message:'Vocabulary ready…' });
+  } else {
+    setState({ progress:0.05, message:'Downloading the language half…' });
+    const tokenizer  = await T.AutoTokenizer.from_pretrained(MODEL, { ...opts, progress_callback: track(0.05, 0.15, 'Downloading the language half…') });
+    const text_model = await T.CLIPTextModelWithProjection.from_pretrained(MODEL, { ...opts, progress_callback: track(0.20, 0.20, 'Downloading the language half…') });
+
+    setState({ progress:0.40, message:'Reading the food vocabulary…' });
+    embeds = [];
+    const BATCH = 16;   // small batches keep peak memory low on mobile
+    for (let i = 0; i < prompts.length; i += BATCH) {
+      const inputs = tokenizer(prompts.slice(i, i + BATCH), { padding: true, truncation: true });
+      const { text_embeds } = await text_model(inputs);
+      for (const row of text_embeds.tolist()) embeds.push(l2norm(row));
+      setState({ progress: 0.40 + 0.20 * ((i + BATCH) / prompts.length) });
+      await new Promise(r => setTimeout(r, 0));   // let the UI breathe
+    }
+
+    // Release it before loading the vision half — both at once is what tips
+    // a phone over its memory limit.
+    try { await text_model.dispose?.(); } catch (_) {}
+
+    await metaSet(key, embeds);
+  }
+
+  setState({ progress:0.65, message:'Downloading the image half…' });
+  const processor    = await T.AutoProcessor.from_pretrained(MODEL, { ...opts, progress_callback: track(0.65, 0.10, 'Downloading the image half…') });
+  const vision_model = await T.CLIPVisionModelWithProjection.from_pretrained(MODEL, { ...opts, progress_callback: track(0.75, 0.24, 'Downloading the image half…') });
+
+  ctx = { processor, vision_model, textEmbeds: embeds, labels, hash };
+  clearInterval(tickTimer); tickTimer = null;
+  setState({ status:'ready', progress:1, message:'Ready', detail:'', stalled:'' }, true);
+}
+
+/* A page served from about:srcdoc, blob: or data: has an opaque origin and no
+   outbound network. That is a preview pane, not a website, and no amount of
+   retrying will help — so say so plainly instead of reporting a network error. */
+function sandboxIssue(){
+  const proto = location.protocol;
+  if (proto === 'file:') return 'file';   // also has a null origin, so check it first
+  if (proto === 'about:' || proto === 'blob:' || proto === 'data:') return 'preview';
+  try { if (location.origin === 'null') return 'preview'; } catch (_) { return 'preview'; }
+  return null;
+}
+
+const SANDBOX_MSG = {
+  preview: 'This page is running inside a preview frame, which blocks downloads. '
+         + 'It needs a real web address — publish to GitHub Pages and open that link, '
+         + 'or serve the folder locally and open the localhost address.',
+  file: 'The download was blocked, and this page was opened as a local file, '
+      + 'which is the likely cause. Serve the folder instead — run '
+      + '"python -m http.server" in it and open http://localhost:8000 — '
+      + 'or publish to GitHub Pages and open that link.',
+};
+
+function explain(err){
+  if (sandboxIssue() === 'preview') return SANDBOX_MSG.preview;
+  const raw = (err && (err.message || String(err))) || 'unknown error';
+  const low = raw.toLowerCase();
+  // Opening the file directly usually works, but if the download is what broke,
+  // it is worth naming as a cause.
+  if (sandboxIssue() === 'file' && (low.includes('fetch') || low.includes('network')))
+    return SANDBOX_MSG.file;
+  if (low.includes('sharedarraybuffer') || low.includes('worker') || low.includes('thread'))
+    return 'This browser blocked multi-threaded WebAssembly. Reload the page — the app now asks for single-threaded mode.';
+  if (low.includes('memory') || low.includes('allocat') || low.includes('out of'))
+    return 'The phone ran out of memory. Close other tabs and apps, then retry — the first load is the heaviest.';
+  if (low.includes('quota') || low.includes('storage'))
+    return 'No room to cache the recogniser. Free up storage, or turn off Private Browsing, then retry.';
+  if (low.includes('fetch') || low.includes('network') || low.includes('cdn') || low.includes('load failed'))
+    return 'Could not download the recogniser. Check the connection — it needs about 50 MB on first use.';
+  if (low.includes('timed out'))
+    return raw;
+  return raw;
+}
+
+async function load(force = false){
+  if (state.status === 'ready') return;
+  if (loadPromise && !force) return loadPromise;
+
+  const TIMEOUT_MS = 240000;
+  loadPromise = Promise.race([
+    build(),
+    new Promise((_, rej) => setTimeout(
+      () => rej(new Error('Timed out after 4 minutes. On a slow connection, stay on this tab and retry.')),
+      TIMEOUT_MS)),
+  ]).catch(err => {
+    console.error('Vision load failed:', err);
+    loadPromise = null;
+    lastError = err;
+    setState({ status:'error', message: explain(err) });
+    throw err;
+  });
+  return loadPromise;
+}
+
+let lastError = null;
+
+async function diagnostics(){
+  let quota = null;
+  try {
+    const est = await navigator.storage?.estimate?.();
+    if (est) quota = Math.round((est.quota || 0) / 1048576) + ' MB quota, '
+                   + Math.round((est.usage || 0) / 1048576) + ' MB used';
+  } catch (_) {}
+  return {
+    status: state.status,
+    moduleLoaded: true,
+    bootErrors: (window.__bootErrors || []).join(' | ') || 'none',
+    error: lastError ? (lastError.message || String(lastError)) : null,
+    runningIn: sandboxIssue() === 'preview' ? 'PREVIEW FRAME — needs a real URL'
+             : sandboxIssue() === 'file'    ? 'opened as a local file — fine on desktop, '
+                                            + 'but phones need a hosted link'
+             : 'a hosted web page (correct)',
+    url: location.href,
+    secureContext: window.isSecureContext,
+    protocol: location.protocol,
+    sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+    webAssembly: typeof WebAssembly !== 'undefined',
+    wasmSimd: (() => { try { return WebAssembly.validate(new Uint8Array(
+      [0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])); }
+      catch (_) { return false; } })(),
+    indexedDB: typeof indexedDB !== 'undefined',
+    createImageBitmap: typeof createImageBitmap === 'function',
+    storage: quota,
+    cores: navigator.hardwareConcurrency || null,
+    memoryGB: navigator.deviceMemory || null,
+    online: navigator.onLine,
+    userAgent: navigator.userAgent,
+  };
+}
+
+/* ═══════════════════════════════════════════════════════
+   TRAINING STORE — your photos, embedded and kept locally
+   ═══════════════════════════════════════════════════════
+   Each training photo is run through CLIP's image encoder once and stored as
+   a 512-number embedding in IndexedDB. Averaging a class's embeddings gives a
+   "prototype" — what that food looks like to the model. Matching a new photo
+   against those prototypes is few-shot learning: no gradients, no GPU, and it
+   takes effect the moment you add a photo.
+*/
+const DB_NAME = 'fresh-vision', DB_STORE = 'samples', META_STORE = 'meta';
+let dbPromise = null;
+
+function db(){
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains(DB_STORE)) {
+        const store = d.createObjectStore(DB_STORE, { keyPath:'id', autoIncrement:true });
+        store.createIndex('label', 'label', { unique:false });
+      }
+      if (!d.objectStoreNames.contains(META_STORE)) {
+        d.createObjectStore(META_STORE, { keyPath:'key' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error || new Error('Could not open local storage.'));
+  });
+  return dbPromise;
+}
+
+function metaGet(key){
+  return db().then(d => new Promise((resolve, reject) => {
+    const r = d.transaction(META_STORE, 'readonly').objectStore(META_STORE).get(key);
+    r.onsuccess = () => resolve(r.result ? r.result.value : null);
+    r.onerror = () => reject(r.error);
+  })).catch(() => null);
+}
+function metaSet(key, value){
+  return db().then(d => new Promise((resolve, reject) => {
+    const t2 = d.transaction(META_STORE, 'readwrite');
+    t2.objectStore(META_STORE).put({ key, value });
+    t2.oncomplete = () => resolve(true);
+    t2.onerror = () => reject(t2.error);
+  })).catch(() => false);
+}
+
+function tx(mode, fn){
+  return db().then(d => new Promise((resolve, reject) => {
+    const t = d.transaction(DB_STORE, mode);
+    const store = t.objectStore(DB_STORE);
+    let out;
+    try { out = fn(store); } catch (e) { reject(e); return; }
+    t.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+    t.onerror = () => reject(t.error);
+  }));
+}
+
+let prototypes = [];   // [{ label, cat, vec, n }]
+
+function rebuildPrototypes(samples){
+  const byLabel = new Map();
+  for (const s of samples) {
+    if (!byLabel.has(s.label)) byLabel.set(s.label, { label:s.label, cat:s.cat, vecs:[] });
+    byLabel.get(s.label).vecs.push(s.embedding);
+  }
+
+  const out = new Map();
+  for (const { label, cat, vecs } of byLabel.values()) {
+    const dim = vecs[0].length;
+    const mean = new Array(dim).fill(0);
+    for (const v of vecs) for (let i = 0; i < dim; i++) mean[i] += v[i];
+    for (let i = 0; i < dim; i++) mean[i] /= vecs.length;
+    out.set(label, { label, cat, vec: l2norm(mean), n: vecs.length, source:'device' });
+  }
+
+  // Fold in whatever was committed to the file. Where both exist, average them
+  // by photo count so neither side is silently thrown away.
+  const builtin = (typeof BUILTIN_TRAINING !== 'undefined' && BUILTIN_TRAINING.items) || [];
+  for (const b of builtin) {
+    if (!Array.isArray(b.vec) || !b.vec.length) continue;
+    const bn = b.n || 1;
+    const existing = out.get(b.label);
+    if (!existing) {
+      out.set(b.label, { label:b.label, cat:b.cat, vec:l2norm(b.vec), n:bn, source:'builtin' });
+    } else {
+      const dim = existing.vec.length;
+      const merged = new Array(dim);
+      for (let i = 0; i < dim; i++) {
+        merged[i] = (existing.vec[i] * existing.n + b.vec[i] * bn) / (existing.n + bn);
+      }
+      out.set(b.label, { label:b.label, cat:existing.cat || b.cat, vec:l2norm(merged),
+                         n: existing.n + bn, source:'both' });
+    }
+  }
+
+  prototypes = [...out.values()];
+  return prototypes;
+}
+
+async function refreshPrototypes(){
+  const samples = await tx('readonly', s => s.getAll());
+  rebuildPrototypes(samples || []);
+  return prototypes;
+}
+
+async function embedImage(dataUrl){
+  if (state.status !== 'ready') await load();
+  const T = await import(CDN);
+  const blob = await (await fetch(dataUrl)).blob();
+  const image = typeof T.RawImage.fromBlob === 'function'
+    ? await T.RawImage.fromBlob(blob)
+    : await T.RawImage.read(dataUrl);
+  const inputs = await ctx.processor(image);
+  const { image_embeds } = await ctx.vision_model(inputs);
+  return l2norm(image_embeds.tolist()[0]);
+}
+
+async function addSample(dataUrl, label, cat, thumb){
+  const embedding = await embedImage(dataUrl);
+  await tx('readwrite', s => s.add({
+    label: label.trim().toLowerCase(), cat, embedding, thumb: thumb || null,
+    added: new Date().toISOString(),
+  }));
+  await refreshPrototypes();
+  return embedding.length;
+}
+
+async function listTrained(){
+  const samples = await tx('readonly', s => s.getAll()) || [];
+  const byLabel = new Map();
+  for (const s of samples) {
+    if (!byLabel.has(s.label)) byLabel.set(s.label,
+      { label:s.label, cat:s.cat, count:0, thumbs:[], onDevice:0, builtIn:0 });
+    const e = byLabel.get(s.label);
+    e.count++; e.onDevice++;
+    if (e.thumbs.length < 5 && s.thumb) e.thumbs.push(s.thumb);
+  }
+  const builtin = (typeof BUILTIN_TRAINING !== 'undefined' && BUILTIN_TRAINING.items) || [];
+  for (const b of builtin) {
+    if (!byLabel.has(b.label)) byLabel.set(b.label,
+      { label:b.label, cat:b.cat, count:0, thumbs:[], onDevice:0, builtIn:0 });
+    const e = byLabel.get(b.label);
+    e.builtIn += (b.n || 1);
+    e.count += (b.n || 1);
+    e.cat = e.cat || b.cat;
+  }
+  return [...byLabel.values()].sort((a,b) => a.label.localeCompare(b.label));
+}
+
+async function deleteLabel(label){
+  const samples = await tx('readonly', s => s.getAll()) || [];
+  const ids = samples.filter(s => s.label === label).map(s => s.id);
+  await tx('readwrite', s => { ids.forEach(id => s.delete(id)); });
+  await refreshPrototypes();
+}
+
+async function clearTraining(){
+  await tx('readwrite', s => s.clear());
+  await refreshPrototypes();
+}
+
+async function importTraining(payload){
+  const rows = (payload && payload.samples) || [];
+  if (!rows.length) throw new Error('That file contains no training samples.');
+  let added = 0, skipped = 0;
+  for (const r of rows) {
+    if (!Array.isArray(r.embedding) || !r.label) { skipped++; continue; }
+    await tx('readwrite', s => s.add({
+      label: String(r.label).trim().toLowerCase(),
+      cat: r.category || r.cat || 'veg',
+      embedding: r.embedding,
+      thumb: r.photo || null,
+      added: r.added || new Date().toISOString(),
+    }));
+    added++;
+  }
+  await refreshPrototypes();
+  return { added, skipped };
+}
+
+function vocabSnippet(){
+  if (!ctx || !ctx.textEmbeds || !ctx.textEmbeds.length)
+    throw new Error('Load the recogniser first, then publish.');
+  const packed = packEmbeds(ctx.textEmbeds);
+  packed.hash = ctx.hash;
+  packed.model = (window.CONFIG && window.CONFIG.model) || 'Xenova/clip-vit-base-patch32';
+  return 'const BUILTIN_VOCAB = ' + JSON.stringify(packed) + ';';
+}
+
+function vocabIsBuiltIn(){
+  try {
+    if (typeof BUILTIN_VOCAB === 'undefined' || !BUILTIN_VOCAB) return false;
+    const { prompts } = buildPrompts();
+    return BUILTIN_VOCAB.hash === hashPrompts(prompts);
+  } catch (_) { return false; }
+}
+
+/* The paste-over line for the repo. Prototypes only — 512 numbers per item,
+   trimmed to 4 decimals, which is far smaller than shipping the photos and
+   is all inference actually needs. */
+function builtinSnippet(){
+  const items = prototypes.map(p => ({
+    label: p.label, cat: p.cat, n: p.n,
+    vec: Array.from(p.vec, x => Math.round(x * 1e4) / 1e4),
+  }));
+  return 'const BUILTIN_TRAINING = ' +
+    JSON.stringify({ version:1, model:'Xenova/clip-vit-base-patch32', items }) + ';';
+}
+
+async function exportTraining(){
+  const samples = await tx('readonly', s => s.getAll()) || [];
+  return {
+    format:'fresh-training-export', version:1,
+    model:'Xenova/clip-vit-base-patch32', dim: samples[0]?.embedding.length || 0,
+    exported_at:new Date().toISOString(),
+    samples: samples.map(s => ({ label:s.label, category:s.cat, added:s.added,
+                                 embedding:s.embedding, photo:s.thumb })),
+  };
+}
+
+async function classify(dataUrl, topK = 4){
+  if (state.status !== 'ready') await load();
+  if (!ctx) throw new Error('The recogniser is not ready yet.');
+
+  const img = await embedImage(dataUrl);
+  const dot = (a, b) => { let d = 0; for (let i = 0; i < a.length; i++) d += a[i] * b[i]; return d; };
+
+  // Text similarity: what the model already knows from its own pretraining.
+  const sims = new Map();
+  ctx.labels.forEach((l, i) => sims.set(l.name, { cat:l.cat, text:dot(ctx.textEmbeds[i], img), proto:null, n:0 }));
+
+  // Prototype similarity: what your own photos have taught it.
+  for (const p of prototypes) {
+    const entry = sims.get(p.label) || { cat:p.cat, text:null, proto:null, n:0 };
+    entry.proto = dot(p.vec, img);
+    entry.n = p.n;
+    entry.cat = entry.cat || p.cat;
+    sims.set(p.label, entry);
+  }
+
+  // Blend. One photo nudges the score; twenty photos dominate it. K sets how
+  // fast your own data overtakes the text prior.
+  const K = 5;
+  const scale = 100;
+  const names = [...sims.keys()];
+  const logits = names.map(name => {
+    const e = sims.get(name);
+    if (e.proto === null) return e.text * scale;
+    if (e.text === null)  return e.proto * scale;
+    const w = e.n / (e.n + K);
+    return ((1 - w) * e.text + w * e.proto) * scale;
+  });
+
+  const max = Math.max(...logits);
+  const exps = logits.map(x => Math.exp(x - max));
+  const sum  = exps.reduce((a, b) => a + b, 0);
+  const probs = exps.map(x => x / sum);
+
+  const ranked = probs
+    .map((p, i) => ({ label: names[i], cat: sims.get(names[i]).cat,
+                      confidence: p, taught: sims.get(names[i]).n }))
+    .sort((a, b) => b.confidence - a.confidence);
+
+  // Keep one 'reject' entry if it wins, so the app can say "that isn't food",
+  // but never clutter the alternatives with the rest of them.
+  const top = ranked[0];
+  const foods = ranked.filter(r => r.cat !== 'reject').slice(0, topK);
+  const predictions = top.cat === 'reject' ? [top, ...foods].slice(0, topK) : foods;
+
+  return { predictions, confidence: predictions[0].confidence };
+}
+
+window.Vision = { __real:true, sandboxIssue,
+                  state, load, classify, embedImage, addSample, listTrained,
+                  deleteLabel, clearTraining, exportTraining, importTraining,
+                  builtinSnippet, vocabSnippet, vocabIsBuiltIn,
+                  refreshPrototypes, diagnostics,
+                  get prototypes(){ return prototypes; } };
+rebuildPrototypes([]);
+refreshPrototypes().catch(() => { rebuildPrototypes([]); });
+if (window.S && window.S.tab === 'add') load();
+</script>
+
+</body>
+</html>
